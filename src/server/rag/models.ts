@@ -26,18 +26,29 @@ export const CHUNK_OVERLAP_TOKENS = 50;
 export const TABLE_MAX_TOKENS = 1500;
 
 /**
- * Cosine-similarity floor for retrieved Chunks. Matches below it are dropped; if none
- * survive, Retrieval returns [] and the agent gives its "not covered" answer instead of
- * grounding on weak passages (ADR 0004).
- *
- * Calibrated 2026-06-13 against the first live rulebook (Monopoly, bge-m3): in-scope top
- * matches scored 0.61–0.65 (relevant secondaries 0.55–0.57), an easy out-of-scope question
- * ~0.32, and the hard negative — another game's rules (chess) asked against this Game — topped
- * out at ~0.53. 0.55 rejects that cross-game leakage (the worst failure: answering confidently
- * from the wrong rulebook) while keeping in-scope hits, biasing toward "not covered" over a wrong
- * grounded answer. Small sample (one rulebook) — revisit as more Games are onboarded.
+ * Permissive noise bound on the raw bge-m3 cosine score. Drop clear garbage cheaply before the
+ * reranker, but DO NOT use cosine as the relevance judge - it ranks badly on this corpus. Probed
+ * 2026-06-14 with "how do I get out of prison" against the live Monopoly index: the correct Jail
+ * passage scored cosine 0.555 while an UNRELATED rent rule scored 0.583 (higher!). Cosine alone
+ * mis-ranks; the cross-encoder (RERANK_MIN_SCORE) is the judge. Cross-game isolation is the
+ * Vectorize game_id filter (retrieve.ts), not this floor - lowering it cannot reintroduce leakage.
  */
-export const RETRIEVAL_MIN_SCORE = 0.55;
+export const RETRIEVAL_MIN_SCORE = 0.15;
+
+/**
+ * In-scope gate on the cross-encoder relevance score (sigmoid-normalised to [0,1] by Workers AI).
+ * After reranking, passages below this are dropped; if none clear it, Retrieval returns [] and the
+ * agent gives its "not covered" reply. THIS, not the cosine floor, decides whether the rulebook
+ * answers the question.
+ *
+ * Calibrated 2026-06-14 against the live Monopoly index with the synonym query "how do I get out of
+ * prison": the Jail passage reranked to 0.841, every other candidate to <= 0.0004 - a clean gap.
+ * 0.2 sits deep inside it, keeping strong + secondary matches while rejecting noise. (This query
+ * previously hit the canned refusal: the old 0.55 cosine floor sat right on the Jail chunk's 0.555
+ * score and the reranker was never used as a gate.)
+ */
+export const RERANK_MIN_SCORE = 0.2;
+
 export const RETRIEVAL_TOP_K = 5;
 /** Over-fetch count: how many Vectorize candidates to pull before the reranker narrows to RETRIEVAL_TOP_K. */
 export const RETRIEVAL_FETCH_N = 20;
