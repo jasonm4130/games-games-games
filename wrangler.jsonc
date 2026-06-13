@@ -6,6 +6,12 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
 
+  // Custom Domain. The jasonmatthew.dev zone is managed by ../jasonm4130-cf, but Worker
+  // routes/custom-domains live here per that repo's convention (workers.tf: "routes stay
+  // in wrangler.jsonc"). A custom_domain route makes wrangler deploy provision the proxied
+  // DNS record + TLS cert automatically — no central-repo DNS resource, no make plan change.
+  "routes": [{ "pattern": "games.jasonmatthew.dev", "custom_domain": true }],
+
   // The built React SPA is served as static assets. Requests to /agents/* (the
   // RulesAgent) and /api/* (ingest/upload) hit the Worker first; everything else
   // falls through to the SPA (client-side routing via single-page-application).
@@ -39,8 +45,18 @@
     {
       "binding": "DB",
       "database_name": "ggg-db",
-      "database_id": "REPLACE_WITH_TERRAFORM_OUTPUT",
+      "database_id": "05e532f4-7ba6-47c1-9f5d-33a15ea1a2b8",
       "migrations_dir": "migrations"
     }
+  ],
+
+  // Abuse/cost guardrails (public, no-login). Rate limits are enforced PER-COLO, not globally,
+  // and `period` must be 10 or 60 — they cap bursts, not the daily total (that's the D1
+  // daily_usage breaker in the agent). namespace_id is an arbitrary integer we own.
+  //   IP_LIMITER  — connection attempts per client IP on /agents/* (index.ts).
+  //   MSG_LIMITER — chat messages per session (keyed by the agent instance name, agent.ts).
+  "ratelimits": [
+    { "name": "IP_LIMITER", "namespace_id": "1001", "simple": { "limit": 30, "period": 60 } },
+    { "name": "MSG_LIMITER", "namespace_id": "1002", "simple": { "limit": 15, "period": 60 } }
   ]
 }

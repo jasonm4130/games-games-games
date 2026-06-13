@@ -24,13 +24,33 @@ function pageLabel(citation: Citation): string {
   return ` · p.${citation.pageStart}`;
 }
 
+/**
+ * A per-browser-tab session id. Without an explicit `name`, every visitor shares one "default"
+ * DO instance — i.e. one shared conversation (a PII leak across users). A random id per tab,
+ * held in sessionStorage, isolates each Session to its own Durable Object.
+ */
+function getSessionId(): string {
+  const KEY = "ggg-session-id";
+  let id = sessionStorage.getItem(KEY);
+  if (!id) {
+    id = crypto.randomUUID();
+    sessionStorage.setItem(KEY, id);
+  }
+  return id;
+}
+
 export default function App() {
   const [input, setInput] = useState("");
   const [games, setGames] = useState<Array<{ id: string; name: string }>>([]);
+  const [sessionName] = useState(getSessionId);
   const endRef = useRef<HTMLDivElement>(null);
 
   // Agent name is kebab-case in the URL ("rules-agent"), not the PascalCase DO class name.
-  const agent = useAgent<RulesAgent, RulesAgentState>({ agent: "rules-agent" });
+  // `name` isolates this tab to its own DO instance (see getSessionId).
+  const agent = useAgent<RulesAgent, RulesAgentState>({
+    agent: "rules-agent",
+    name: sessionName,
+  });
   const { messages, sendMessage, status, clearHistory, stop } = useAgentChat<
     RulesAgentState,
     RulesUIMessage
@@ -93,7 +113,7 @@ export default function App() {
             onClick={() => clearHistory()}
             disabled={messages.length === 0}
           >
-            Clear
+            New conversation
           </button>
         </div>
       </header>
