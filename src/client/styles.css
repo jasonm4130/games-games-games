@@ -43,6 +43,27 @@ body {
   letter-spacing: 0.01em;
 }
 
+.app__controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.game-picker {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 13px;
+  max-width: 220px;
+}
+
+.game-picker:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 .chat {
   flex: 1;
   overflow-y: auto;
@@ -90,6 +111,52 @@ body {
 
 .msg--user .msg__body {
   background: var(--surface-2);
+}
+
+.citations {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.citation {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.citation__n {
+  color: var(--accent);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.citation__detail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.citation__meta {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+}
+
+.citation__text {
+  color: var(--text);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .composer {

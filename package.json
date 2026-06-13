@@ -22,6 +22,7 @@
   "dependencies": {
     "@ai-sdk/react": "^3.0.204",
     "@cloudflare/ai-chat": "^0.8.5",
+    "@langchain/textsplitters": "^1.0.1",
     "agents": "^0.16.0",
     "ai": "^6.0.0",
     "react": "^19.2.0",

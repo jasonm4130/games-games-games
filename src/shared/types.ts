@@ -1,6 +1,14 @@
 // Domain model — see CONTEXT.md for the canonical definitions.
 
+import type { UIMessage } from "ai";
+
 export type DocumentStatus = "pending" | "ingesting" | "ready" | "failed";
+
+/** Per-Session state held by the RulesAgent Durable Object (persists across hibernation). */
+export interface RulesAgentState {
+  /** The Game the Session is scoped to; undefined until the user picks one (ADR 0004). */
+  activeGameId: string | undefined;
+}
 
 /** A Rulebook's role within its Game; errata overrides base rules (ADR 0004). */
 export type DocumentKind = "base" | "expansion" | "errata";
@@ -44,9 +52,30 @@ export interface Chunk {
   createdAt: string;
 }
 
+/** One page of extracted rulebook text — the input to chunking. */
+export interface PageText {
+  pageNumber: number;
+  text: string;
+}
+
+/**
+ * A chunk ready to embed + persist. `text` is the raw chunk stored in D1 and shown in
+ * Citations; `embedText` carries the heading-path prefix and is used only for embedding.
+ */
+export interface ChunkInput {
+  text: string;
+  embedText: string;
+  pageStart: number;
+  pageEnd: number;
+  headingPath: string | null;
+  isTable: boolean;
+}
+
 /** A Chunk returned from Retrieval, with its similarity score. */
 export interface RetrievedChunk {
   chunk: Pick<Chunk, "id" | "documentId" | "ordinal" | "text" | "pageStart" | "pageEnd">;
+  /** Name of the Game the chunk belongs to (retrieval is Game-scoped) — for Citations. */
+  gameName: string;
   score: number;
 }
 
@@ -61,3 +90,9 @@ export interface Citation {
   text: string;
   score: number;
 }
+
+/**
+ * The chat's UI message shape: assistant turns carry a `data-citations` part alongside the
+ * streamed text, so the client can render verifiable Citation cards keyed to the [N] markers.
+ */
+export type RulesUIMessage = UIMessage<never, { citations: Citation[] }>;

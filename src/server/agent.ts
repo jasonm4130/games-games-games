@@ -1,14 +1,21 @@
 import { AIChatAgent, type OnChatMessageOptions } from "@cloudflare/ai-chat";
 import { callable } from "agents";
-import { convertToModelMessages, streamText, type UIMessage } from "ai";
+import {
+  convertToModelMessages,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  streamText,
+  type UIMessage,
+} from "ai";
 import { createWorkersAI } from "workers-ai-provider";
+import type { Citation, RulesAgentState, RulesUIMessage } from "../shared/types";
 import { GENERATION_MODEL } from "./rag/models";
 import { retrieve } from "./rag/retrieve";
 
 const SYSTEM_PROMPT = `You are a precise tabletop-game rules assistant. Answer the player's \
 question about a game's rules. Ground every answer in the retrieved rulebook passages and \
-cite them inline as [1], [2], etc. If the passages do not cover the question, say so plainly \
-instead of guessing.`;
+cite them inline as [1], [2], etc., using only the numbers of the passages provided, in \
+order. If the passages do not cover the question, say so plainly instead of guessing.`;
 
 /** Concatenate the text parts of the most recent user message. */
 function lastUserText(messages: UIMessage[]): string {
@@ -24,19 +31,16 @@ function lastUserText(messages: UIMessage[]): string {
   return "";
 }
 
-export class RulesAgent extends AIChatAgent<Env> {
+export class RulesAgent extends AIChatAgent<Env, RulesAgentState> {
   maxPersistedMessages = 100;
 
-  /** The active Game for this Session; Retrieval is scoped to it (ADR 0004). */
-  activeGameId?: string;
+  /** Active Game persists in DO state, surviving hibernation (ADR 0004). */
+  initialState: RulesAgentState = { activeGameId: undefined };
 
-  /**
-   * Select the Game this Session asks about.
-   * TODO(scoping): persist across DO hibernation (agent state) and wire the client picker.
-   */
+  /** Select the Game this Session asks about; the client calls this via the agent stub. */
   @callable()
   async selectGame(gameId: string): Promise<void> {
-    this.activeGameId = gameId;
+    this.setState({ ...this.state, activeGameId: gameId });
   }
 
   /** Callable from the client via `agent.stub.listGames()`. */
@@ -59,13 +63,23 @@ export class RulesAgent extends AIChatAgent<Env> {
     const messages = await convertToModelMessages(this.messages);
 
     const passages = await retrieve(this.env, lastUserText(this.messages), {
-      gameId: this.activeGameId,
+      gameId: this.state.activeGameId,
     });
     const grounding =
       passages.length > 0
         ? passages.map((p, i) => `[${i + 1}] ${p.chunk.text}`).join("\n\n")
-        : "No rulebook passages are available yet (ingestion is not implemented). " +
-          "Tell the user their answer is unverified.";
+        : "No relevant rulebook passages were found for this question.";
+
+    const citations: Citation[] = passages.map((p) => ({
+      chunkId: p.chunk.id,
+      documentId: p.chunk.documentId,
+      gameName: p.gameName,
+      ordinal: p.chunk.ordinal,
+      pageStart: p.chunk.pageStart,
+      pageEnd: p.chunk.pageEnd,
+      text: p.chunk.text,
+      score: p.score,
+    }));
 
     const result = streamText({
       model: workersai(GENERATION_MODEL),
@@ -74,6 +88,17 @@ export class RulesAgent extends AIChatAgent<Env> {
       abortSignal: options?.abortSignal,
     });
 
-    return result.toUIMessageStreamResponse();
+    // Stream the structured citations (rendered as cards, keyed to the [N] markers) ahead of
+    // the answer text. Persistence is unaffected: @cloudflare/ai-chat reconstructs + persists
+    // the assistant message by reading this SSE stream (see _reply in its source).
+    const stream = createUIMessageStream<RulesUIMessage>({
+      execute: ({ writer }) => {
+        if (citations.length > 0) {
+          writer.write({ type: "data-citations", data: citations });
+        }
+        writer.merge(result.toUIMessageStream<RulesUIMessage>());
+      },
+    });
+    return createUIMessageStreamResponse({ stream });
   }
 }

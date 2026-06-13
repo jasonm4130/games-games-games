@@ -2,20 +2,57 @@ import { useAgentChat } from "@cloudflare/ai-chat/react";
 import { useAgent } from "agents/react";
 import type { UIMessage } from "ai";
 import { type FormEvent, useEffect, useRef, useState } from "react";
+import type { RulesAgent } from "../server/agent";
+import type { Citation, RulesAgentState, RulesUIMessage } from "../shared/types";
 
 function textOf(message: UIMessage): string {
   return message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("");
 }
 
+function citationsOf(message: RulesUIMessage): Citation[] {
+  for (const part of message.parts) {
+    if (part.type === "data-citations") return part.data;
+  }
+  return [];
+}
+
+function pageLabel(citation: Citation): string {
+  if (citation.pageStart == null) return "";
+  if (citation.pageEnd != null && citation.pageEnd !== citation.pageStart) {
+    return ` · p.${citation.pageStart}–${citation.pageEnd}`;
+  }
+  return ` · p.${citation.pageStart}`;
+}
+
 export default function App() {
   const [input, setInput] = useState("");
+  const [games, setGames] = useState<Array<{ id: string; name: string }>>([]);
   const endRef = useRef<HTMLDivElement>(null);
 
   // Agent name is kebab-case in the URL ("rules-agent"), not the PascalCase DO class name.
-  const agent = useAgent({ agent: "rules-agent" });
-  const { messages, sendMessage, status, clearHistory, stop } = useAgentChat({ agent });
+  const agent = useAgent<RulesAgent, RulesAgentState>({ agent: "rules-agent" });
+  const { messages, sendMessage, status, clearHistory, stop } = useAgentChat<
+    RulesAgentState,
+    RulesUIMessage
+  >({ agent });
 
+  const activeGameId = agent.state?.activeGameId;
   const isStreaming = status === "streaming" || status === "submitted";
+
+  // Load the Catalogue once the agent connection is ready.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount; the agent stub is stable for the connection.
+  useEffect(() => {
+    let cancelled = false;
+    agent.ready
+      .then(() => agent.stub.listGames())
+      .then((list) => {
+        if (!cancelled) setGames(list);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll to the bottom whenever the message list changes, even though the effect body only touches the ref.
   useEffect(() => {
@@ -25,7 +62,7 @@ export default function App() {
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     const text = input.trim();
-    if (!text || isStreaming) return;
+    if (!text || isStreaming || !activeGameId) return;
     setInput("");
     sendMessage({ role: "user", parts: [{ type: "text", text }] });
   }
@@ -34,29 +71,66 @@ export default function App() {
     <div className="app">
       <header className="app__header">
         <h1>games-games-games</h1>
-        <button
-          type="button"
-          className="ghost"
-          onClick={() => clearHistory()}
-          disabled={messages.length === 0}
-        >
-          Clear
-        </button>
+        <div className="app__controls">
+          <select
+            className="game-picker"
+            aria-label="Select a game"
+            value={activeGameId ?? ""}
+            onChange={(event) => agent.stub.selectGame(event.target.value)}
+          >
+            <option value="" disabled>
+              {games.length === 0 ? "No games onboarded" : "Select a game…"}
+            </option>
+            {games.map((game) => (
+              <option key={game.id} value={game.id}>
+                {game.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => clearHistory()}
+            disabled={messages.length === 0}
+          >
+            Clear
+          </button>
+        </div>
       </header>
 
       <main className="chat">
         {messages.length === 0 ? (
           <p className="chat__empty">
-            Ask a rules question. No rulebooks are indexed yet, so answers are unverified until the
-            ingestion pipeline lands.
+            {activeGameId
+              ? "Ask a rules question about the selected game."
+              : "Pick a game to start. Answers are grounded in that game's rulebooks, with citations."}
           </p>
         ) : (
-          messages.map((message) => (
-            <div key={message.id} className={`msg msg--${message.role}`}>
-              <span className="msg__role">{message.role}</span>
-              <div className="msg__body">{textOf(message)}</div>
-            </div>
-          ))
+          messages.map((message) => {
+            const citations = message.role === "assistant" ? citationsOf(message) : [];
+            return (
+              <div key={message.id} className={`msg msg--${message.role}`}>
+                <span className="msg__role">{message.role}</span>
+                <div className="msg__body">{textOf(message)}</div>
+                {citations.length > 0 && (
+                  <div className="citations">
+                    {citations.map((citation, index) => (
+                      <div key={citation.chunkId} className="citation">
+                        <span className="citation__n">[{index + 1}]</span>
+                        <div className="citation__detail">
+                          <span className="citation__meta">
+                            {citation.gameName}
+                            {pageLabel(citation)}
+                          </span>
+                          <span className="citation__text">{citation.text}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })
         )}
         <div ref={endRef} />
       </main>
@@ -65,15 +139,20 @@ export default function App() {
         <input
           value={input}
           onChange={(event) => setInput(event.target.value)}
-          placeholder="e.g. In Catan, can I trade with the bank on another player's turn?"
+          placeholder={
+            activeGameId
+              ? "e.g. Can I trade with the bank on another player's turn?"
+              : "Pick a game first"
+          }
           aria-label="Rules question"
+          disabled={!activeGameId}
         />
         {isStreaming ? (
           <button type="button" onClick={() => stop()}>
             Stop
           </button>
         ) : (
-          <button type="submit" disabled={!input.trim()}>
+          <button type="submit" disabled={!input.trim() || !activeGameId}>
             Send
           </button>
         )}
