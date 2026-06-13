@@ -1,53 +1,44 @@
 #!/usr/bin/env bash
 #
-# Provision every Cloudflare resource for games-games-games, in one pass:
-#   1. Terraform  — R2 bucket + D1 database
-#   2. (auto)     — patch the D1 id into wrangler.jsonc
-#   3. Wrangler   — Vectorize index (no Terraform resource exists)
-#   4. Wrangler   — apply the D1 schema migration (remote)
+# App-side provisioning for games-games-games.
 #
-# Requires: terraform, pnpm (provides wrangler), and these env vars:
-#   CLOUDFLARE_API_TOKEN   account-scoped: R2 Edit, D1 Edit, Vectorize Edit,
-#                          Workers Scripts Edit, Account Settings Read
-#   TF_VAR_account_id      your Cloudflare account id
+# The backing resources — the R2 bucket (ggg-rulebooks), the D1 database (ggg-db),
+# and the Vectorize index (ggg-rules-index) — are owned by the central Cloudflare
+# Terraform repo. Provision them THERE first:
 #
-# See docs/adr/0003 for why the work is split between Terraform and Wrangler.
+#     cd ../jasonm4130-cf && make plan && make apply
+#
+# Then this script does the app-side steps: resolve the D1 database id, wire it into
+# wrangler.jsonc, and apply the D1 schema migration. Requires `wrangler login`
+# (or CLOUDFLARE_API_TOKEN) and the resources to already exist. See docs/adr/0003.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-: "${CLOUDFLARE_API_TOKEN:?set CLOUDFLARE_API_TOKEN (account-scoped) first}"
-: "${TF_VAR_account_id:?set TF_VAR_account_id to your Cloudflare account id}"
-
-# Terraform reads the token from TF_VAR_cloudflare_api_token.
-export TF_VAR_cloudflare_api_token="${TF_VAR_cloudflare_api_token:-$CLOUDFLARE_API_TOKEN}"
-
-vectorize_index="${VECTORIZE_INDEX:-ggg-rules-index}"
 d1_database="${D1_DATABASE:-ggg-db}"
 
-command -v terraform >/dev/null || { echo "terraform not found on PATH"; exit 1; }
+echo "==> resolving the ${d1_database} database id"
+d1_id="$(pnpm -s wrangler d1 list --json 2>/dev/null |
+  python3 -c "import sys,json; print(next((d['uuid'] for d in json.load(sys.stdin) if d.get('name')=='${d1_database}'), ''))" 2>/dev/null || true)"
 
-echo "==> [1/4] terraform apply — R2 bucket + D1 database"
-terraform -chdir=terraform init -input=false
-terraform -chdir=terraform apply -auto-approve
-d1_id="$(terraform -chdir=terraform output -raw d1_database_id)"
+if [ -z "$d1_id" ]; then
+  echo "Could not find '${d1_database}'. Provision the backing resources first:"
+  echo "    cd ../jasonm4130-cf && make apply"
+  exit 1
+fi
 
-echo "==> [2/4] wire D1 id into wrangler.jsonc"
+echo "==> wiring database_id into wrangler.jsonc (${d1_id})"
 if grep -q "REPLACE_WITH_TERRAFORM_OUTPUT" wrangler.jsonc; then
   tmp="$(mktemp)"
   sed "s/REPLACE_WITH_TERRAFORM_OUTPUT/${d1_id}/" wrangler.jsonc >"$tmp" && mv "$tmp" wrangler.jsonc
-  echo "    set database_id = ${d1_id}"
+  echo "    set database_id"
 else
   echo "    placeholder already replaced — leaving wrangler.jsonc as-is"
 fi
 
-echo "==> [3/4] wrangler vectorize create — ${vectorize_index} (1024 dims, cosine)"
-pnpm wrangler vectorize create "$vectorize_index" --dimensions=1024 --metric=cosine \
-  || echo "    (index may already exist — continuing)"
-
-echo "==> [4/4] wrangler d1 migrations apply — ${d1_database} (remote)"
+echo "==> applying the D1 schema migration (remote)"
 pnpm wrangler d1 migrations apply "$d1_database" --remote
 
 echo
-echo "Provisioning complete. Deploy with:  pnpm deploy"
+echo "Done. Deploy with:  pnpm deploy"

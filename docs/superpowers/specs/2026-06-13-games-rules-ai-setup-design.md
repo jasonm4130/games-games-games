@@ -25,8 +25,8 @@ This document codifies the validated decisions. It is a foundation, not the whol
 - Dev tooling: TypeScript, Biome, Vitest (+ one smoke test), Wrangler.
 - AI-dev tooling: `CLAUDE.md` (Karpathy rules + conventions), the `grill-with-docs`
   skill, `CONTEXT.md` glossary, `docs/adr/` with seed ADRs.
-- Infrastructure: `terraform/` for the resources Terraform owns, plus a provisioning
-  script that drives Terraform **and** the wrangler-only creates together.
+- Infrastructure: the R2/D1/Vectorize resources are added to the central Terraform repo
+  (`../jasonm4130-cf`); a provisioning script wires the D1 id and applies the migration.
 
 **Out of scope (later feature phases):**
 
@@ -84,14 +84,14 @@ src/
 | Resource | Binding | Owner | Why |
 | --- | --- | --- | --- |
 | Durable Object (the agent) | `RulesAgent` | **wrangler** | DO migrations (`new_sqlite_classes`) have no Terraform primitive |
-| R2 bucket (rulebook PDFs) | `RULEBOOKS` | **Terraform** (`cloudflare_r2_bucket`) | stable TF resource |
-| D1 database (metadata) | `DB` | **Terraform** (`cloudflare_d1_database`) | TF creates the shell; schema via `wrangler d1 migrations` |
-| Vectorize index (embeddings) | `RULES_IDX` | **wrangler** (`wrangler vectorize create`) | **no `cloudflare_vectorize_index` resource exists** in provider v5 |
+| R2 bucket (rulebook PDFs) | `RULEBOOKS` | **central TF repo** (`cloudflare_r2_bucket`) | account-level; lives in `../jasonm4130-cf` |
+| D1 database (metadata) | `DB` | **central TF repo** (`cloudflare_d1_database`) | TF creates the shell; schema via `wrangler d1 migrations` |
+| Vectorize index (embeddings) | `RULES_IDX` | **central TF repo** (magodo/restful stopgap) | official provider has no native resource; managed via restful in `../jasonm4130-cf` |
 | Workers AI | `AI` | neither | account-level; binding only |
 
-`wrangler.jsonc` references the Terraform-created resources by name/id. Ordering:
-`terraform apply` (creates R2 + D1, outputs the D1 id) → `wrangler vectorize create` →
-ids wired into `wrangler.jsonc` → `wrangler d1 migrations apply --remote`. The
+`wrangler.jsonc` references the resources by name (R2, Vectorize) and id (D1). Ordering:
+`make apply` in `../jasonm4130-cf` (creates R2 + D1 + Vectorize) → `scripts/provision.sh`
+wires the D1 id → `wrangler d1 migrations apply --remote`. The
 `assets.run_worker_first` list routes `/agents/*` and `/api/*` to the Worker; everything
 else is served as static SPA assets with `not_found_handling: single-page-application`.
 
@@ -124,7 +124,8 @@ Text-generation model is **not** locked in (easy to change): default
 
 - **Real:** the Worker entry + routing, `RulesAgent` streaming a reply via
   `workers-ai-provider`, the D1 migration, all bindings, the full tooling and AI-dev
-  tooling, the Terraform module + provisioning script.
+  tooling, the `ggg_*` resource additions to the central Terraform repo + the
+  provisioning script.
 - **Typed seams (TODO):** `rag/embed.ts` (call `@cf/baai/bge-m3`), `rag/chunk.ts`
   (split rulebook text), `rag/retrieve.ts` (query Vectorize), `rag/ingest.ts`
   (parse → chunk → embed → upsert). Each has a clear signature and a `// TODO(rag):`
@@ -144,15 +145,16 @@ Text-generation model is **not** locked in (easy to change): default
 
 ## Provisioning workflow
 
-1. `cd terraform && terraform init && terraform apply` (creates R2 + D1; outputs D1 id).
-2. `wrangler vectorize create ggg-rules-index --dimensions=1024 --metric=cosine`.
-3. Wire the D1 `database_id` into `wrangler.jsonc`.
-4. `wrangler d1 migrations apply ggg-db --remote`.
+Backing resources live in the central Terraform repo `../jasonm4130-cf` (ADR 0003):
 
-`scripts/provision.sh` runs steps 1, 2, and 4 in sequence and reports the ids — so the
-Terraform-owned and wrangler-owned resources are provisioned together in one command.
-Requires `CLOUDFLARE_API_TOKEN` (account-scoped: R2 Edit, D1 Edit, Vectorize Edit,
-Workers Scripts Edit, Account Settings Read).
+1. `cd ../jasonm4130-cf && make plan && make apply` — creates the R2 bucket, D1 database,
+   and Vectorize index (`ggg-rules-index`, 1024/cosine, via the magodo/restful stopgap).
+2. `./scripts/provision.sh` (this repo) — resolves the D1 id, wires it into `wrangler.jsonc`,
+   and runs `wrangler d1 migrations apply ggg-db --remote`.
+3. `pnpm deploy`.
+
+The central repo authenticates with an account-scoped `CLOUDFLARE_API_TOKEN` (R2 Edit,
+D1 Edit, Vectorize Edit, Account Settings Read) via 1Password.
 
 ## Success criteria
 
@@ -161,7 +163,7 @@ Workers Scripts Edit, Account Settings Read).
 - `pnpm check` (Biome + `tsc`) passes.
 - `pnpm build` (Vite) produces a client bundle and bundles the Worker.
 - `pnpm test` runs the smoke test green.
-- `terraform validate` passes in `terraform/`.
+- The R2/D1/Vectorize additions in `../jasonm4130-cf` pass `terraform validate`.
 
 ## Implementation checklist
 
@@ -170,5 +172,5 @@ Workers Scripts Edit, Account Settings Read).
 3. Package + tooling config (package.json, tsconfig, wrangler.jsonc, vite.config.ts,
    biome.json, vitest.config.ts, index.html, .gitignore, .editorconfig, README).
 4. `src/` (agent + RAG seams + client) + `migrations/0001_init.sql`.
-5. `terraform/` + `scripts/provision.sh`.
+5. Add R2/D1/Vectorize to the central repo `../jasonm4130-cf`; slim `scripts/provision.sh` to the app-side steps.
 6. Install deps, generate types, verify (Biome, tsc, build, test), commit.

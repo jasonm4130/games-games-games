@@ -5,7 +5,9 @@ status: accepted
 # Embeddings: `@cf/baai/bge-m3` at 1024 dimensions, cosine
 
 The Vectorize index `RULES_IDX` uses **`@cf/baai/bge-m3`**, **1024 dimensions**,
-**cosine** metric. Created with:
+**cosine** metric. Created in the central Terraform repo (`../jasonm4130-cf`) via the magodo/restful stopgap,
+pinned to 1024 dimensions and the cosine metric (see ADR 0003). For reference only — not
+the path used — the equivalent wrangler command would be:
 
 ```sh
 wrangler vectorize create ggg-rules-index --dimensions=1024 --metric=cosine

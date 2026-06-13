@@ -25,16 +25,16 @@
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RulesAgent"] }],
 
-  // Rulebook PDFs. Bucket is created by Terraform (docs/adr/0003).
+  // Rulebook PDFs. Bucket created by the central infra repo ../jasonm4130-cf (ADR 0003).
   "r2_buckets": [{ "binding": "RULEBOOKS", "bucket_name": "ggg-rulebooks" }],
 
-  // Embeddings. Index created by `wrangler vectorize create` (no Terraform
-  // resource exists). Dims/metric are immutable: bge-m3, 1024, cosine — ADR 0002.
-  // No local simulation, so remote: true for dev.
+  // Embeddings. Index created by the central infra repo ../jasonm4130-cf via the
+  // magodo/restful stopgap (no native TF resource yet). Dims/metric are immutable:
+  // bge-m3, 1024, cosine — ADR 0002. No local simulation, so remote: true for dev.
   "vectorize": [{ "binding": "RULES_IDX", "index_name": "ggg-rules-index", "remote": true }],
 
-  // Metadata. Database is created by Terraform; paste its id below after
-  // `terraform apply` (or run scripts/provision.sh). Schema lives in migrations/.
+  // Metadata. Database created by the central infra repo ../jasonm4130-cf; wire its
+  // id below via scripts/provision.sh (or `wrangler d1 list`). Schema lives in migrations/.
   "d1_databases": [
     {
       "binding": "DB",

@@ -30,25 +30,27 @@ account and require `wrangler login` (and incur usage). The chat UI loads withou
 
 ## Provisioning the cloud resources
 
-Resources are split between Terraform and Wrangler (see [ADR 0003](./docs/adr/0003-terraform-wrangler-provisioning-split.md)):
+The R2 bucket, D1 database, and Vectorize index are owned by the central Cloudflare
+Terraform repo (`../jasonm4130-cf`); this repo owns only the Worker + Durable Object +
+bindings (see [ADR 0003](./docs/adr/0003-terraform-wrangler-provisioning-split.md)):
 
 | Resource | Owner |
 | --- | --- |
-| R2 bucket, D1 database | **Terraform** (`terraform/`) |
-| Vectorize index, Worker, Durable Object | **Wrangler** |
+| R2 bucket, D1 database, Vectorize index | **central Terraform repo** (`../jasonm4130-cf`) |
+| Worker, Durable Object, bindings | **Wrangler** (this repo) |
 | Workers AI | account-level (binding only) |
 
-One command provisions both halves:
+Provision in two steps:
 
 ```sh
-export CLOUDFLARE_API_TOKEN=...   # account-scoped: R2 Edit, D1 Edit, Vectorize Edit, Workers Scripts Edit, Account Settings Read
-export TF_VAR_account_id=...      # your Cloudflare account id
+# 1. Create the backing resources (central repo)
+cd ../jasonm4130-cf && make plan && make apply
+
+# 2. Wire the D1 id into wrangler.jsonc and apply the schema (this repo)
 ./scripts/provision.sh
 ```
 
-It runs `terraform apply` (creates R2 + D1), `wrangler vectorize create`, and
-`wrangler d1 migrations apply`, then prints the D1 `database_id` to paste into
-`wrangler.jsonc`. Deploy with `pnpm deploy`.
+Then deploy with `pnpm deploy`.
 
 ## Commands
 
@@ -72,8 +74,7 @@ src/
   client/        React SPA
   shared/        types shared by server + client
 migrations/      D1 schema
-terraform/       R2 + D1 provisioning
-scripts/         provision.sh
+scripts/         provision.sh (app-side: D1 id + migration)
 docs/
   adr/           architecture decision records
   superpowers/   design specs

@@ -56,19 +56,21 @@ shapes against docs, not memory.
 - **`nodejs_compat`** compatibility flag is required.
 - **Dev loop is `vite dev`, not `wrangler dev`** — `@cloudflare/vite-plugin` runs the
   Worker in workerd with HMR.
-- **Vectorize has no local simulation and no Terraform resource.** The index dims/metric
-  are **immutable** (we use `@cf/baai/bge-m3`, 1024, cosine — see ADR 0002). `remote: true`
-  on the binding routes local dev to the deployed index.
+- **Vectorize has no local simulation.** The index dims/metric are **immutable** (we use
+  `@cf/baai/bge-m3`, 1024, cosine — see ADR 0002). `remote: true` on the binding routes
+  local dev to the deployed index. The official TF provider has no native Vectorize
+  resource, so the central infra repo manages it via the magodo/restful stopgap (ADR 0003).
 - **Workers AI always hits the network** — billed even during `vite dev`.
 - After editing `wrangler.jsonc`, run **`pnpm types`** to regenerate `env.d.ts`.
 
-## Provisioning (TF + wrangler, see ADR 0003)
+## Provisioning (central infra repo + wrangler, see ADR 0003)
 
-Terraform owns **R2 + D1**; wrangler owns **Vectorize + the Worker + the Durable Object**;
-Workers AI is account-level (binding only). `terraform apply` runs before the first deploy.
-`scripts/provision.sh` runs both halves together. Needs an account-scoped
-`CLOUDFLARE_API_TOKEN` (R2 Edit, D1 Edit, Vectorize Edit, Workers Scripts Edit, Account
-Settings Read).
+The R2 bucket, D1 database, and Vectorize index are owned by the **central Cloudflare
+Terraform repo `../jasonm4130-cf`** (Vectorize via the magodo/restful stopgap). This repo
+owns only the Worker + Durable Object + bindings. Provision in two steps: `make apply` in
+the central repo creates the resources, then `scripts/provision.sh` here wires the D1 id
+into `wrangler.jsonc` and applies the D1 migration. Do **not** add a local `terraform/`
+dir — account-level resources live in the central repo.
 
 ## Commands
 
@@ -80,7 +82,7 @@ Settings Read).
 | `pnpm types` | regenerate `env.d.ts` from `wrangler.jsonc` |
 | `pnpm check` | Biome + `tsc` (lint, format-check, typecheck) |
 | `pnpm test` | Vitest (Workers pool) |
-| `scripts/provision.sh` | Terraform apply + `wrangler vectorize create` + D1 migrate |
+| `scripts/provision.sh` | App-side: wire D1 id + apply D1 migration (resources come from `../jasonm4130-cf`) |
 
 ## The grill-with-docs skill
 
