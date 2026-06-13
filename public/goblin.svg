@@ -1,0 +1,20 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The Rules Goblin">
+  <title>The Rules Goblin</title>
+  <rect width="100" height="100" rx="20" fill="#11261c"/>
+  <g transform="translate(2 2) scale(0.96)">
+    <g fill="#d8492f" stroke="#16130f" stroke-width="2.5">
+      <path d="M31 42 L7 21 Q11 47 31 53 Z" stroke-linejoin="round"/>
+      <path d="M69 42 L93 21 Q89 47 69 53 Z" stroke-linejoin="round"/>
+      <path d="M50 20 C70 20 82 35 82 56 C82 78 67 90 50 90 C33 90 18 78 18 56 C18 35 30 20 50 20 Z" stroke-linejoin="round"/>
+    </g>
+    <g fill="#16130f">
+      <path d="M31 50 Q41 44 49 51 Q40 56 31 50 Z"/>
+      <path d="M51 51 Q59 44 69 50 Q60 56 51 51 Z"/>
+      <circle cx="41" cy="50" r="2.1" fill="#efe6d0"/>
+      <circle cx="60" cy="50" r="2.1" fill="#efe6d0"/>
+    </g>
+    <path d="M50 55 L45 67 L55 67 Z" fill="#16130f"/>
+    <path d="M34 72 Q50 86 66 72" fill="none" stroke="#16130f" stroke-width="3" stroke-linecap="round"/>
+    <path d="M54 74 L58 74 L56 82 Z" fill="#efe6d0"/>
+  </g>
+</svg>
