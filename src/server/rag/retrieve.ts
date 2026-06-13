@@ -24,9 +24,10 @@ export interface RetrieveOptions {
 /**
  * Retrieve the Chunks most relevant to a question, scoped to one Game. Embeds the question
  * (bge-m3, no query prefix), queries Vectorize filtered by `game_id` (over-fetching RETRIEVAL_FETCH_N
- * candidates), drops matches below the cosine grounding floor (the in-scope gate — ADR 0004), hydrates
- * text + page span + Game name from D1, then reranks survivors with bge-reranker-base and returns the
- * top RETRIEVAL_TOP_K in reranker order. `.score` on each result stays the original cosine score.
+ * candidates), drops clear noise below the cosine bound, hydrates text + page span + Game name from
+ * D1, then reranks survivors with bge-reranker-base and keeps those at/above RERANK_MIN_SCORE — the
+ * in-scope gate (ADR 0004) — in reranker order, returning [] if none clear it. `.score` on each
+ * result stays the original cosine score, for Citation display.
  */
 export async function retrieve(
   env: Env,

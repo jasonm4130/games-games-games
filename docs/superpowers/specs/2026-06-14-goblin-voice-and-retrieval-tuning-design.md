@@ -69,7 +69,7 @@ Two facts make the fix clean and safe:
 
 Make the reranker the relevance gate, not the cosine floor.
 
-1. **Lower the pre-rerank cosine floor.** `RETRIEVAL_MIN_SCORE` 0.55 → **~0.35** in
+1. **Lower the pre-rerank cosine floor.** `RETRIEVAL_MIN_SCORE` 0.55 → **0.15** (calibrated against the live index — see the plan) in
    `src/server/rag/models.ts`. It becomes a cheap noise bound that lets synonym matches survive to
    the reranker, not the relevance judge.
 2. **Add a reranker-score gate.** New constant `RERANK_MIN_SCORE` in `models.ts`. In
