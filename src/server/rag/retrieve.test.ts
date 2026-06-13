@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { RERANK_MODEL, RETRIEVAL_MIN_SCORE } from "./models";
+import { RERANK_MODEL, RERANK_MIN_SCORE, RETRIEVAL_MIN_SCORE } from "./models";
 
 // Drizzle row shape after the hydration JOIN (camelCase, as selected in retrieve.ts).
 interface HydratedRow {
@@ -45,15 +45,22 @@ function row(id: string, overrides: Partial<HydratedRow> = {}): HydratedRow {
   };
 }
 
-function build(opts: { matches: Array<{ id: string; score: number }>; rows: HydratedRow[] }) {
+function build(opts: {
+  matches: Array<{ id: string; score: number }>;
+  rows: HydratedRow[];
+  rerank?: (contexts: unknown[]) => Array<{ id: number; score: number }>;
+}) {
   hoisted.rows = opts.rows;
   // env.AI.run serves two models: bge-m3 embeddings ({ data }) and the reranker ({ response }).
-  // The reranker mock is identity — it returns ids in input order, so retrieve preserves the
-  // survivor (Vectorize score) order, isolating the test from reranker model behaviour.
+  // Default reranker mock is identity (ids in input order, descending scores near 1) so order is
+  // preserved and the gate passes; a test may override via opts.rerank to exercise the gate.
   const aiRun = vi.fn(async (model: string, input: unknown) => {
     if (model === RERANK_MODEL) {
       const { contexts } = input as { contexts: unknown[] };
-      return { response: contexts.map((_, i) => ({ id: i, score: 1 - i * 0.01 })) };
+      const response = opts.rerank
+        ? opts.rerank(contexts)
+        : contexts.map((_, i) => ({ id: i, score: 1 - i * 0.01 }));
+      return { response };
     }
     return { data: [[0.1, 0.2, 0.3]] };
   });
@@ -133,5 +140,49 @@ describe("retrieve", () => {
   it("skips a match that has no D1 row", async () => {
     const { env } = build({ matches: [{ id: "c1", score: 0.9 }], rows: [] });
     expect(await retrieve(env, "q", { gameId: "g1" })).toEqual([]);
+  });
+
+  it("scores a lone survivor through the reranker (no single-survivor skip)", async () => {
+    const { env, aiRun } = build({ matches: [{ id: "c1", score: 0.9 }], rows: [row("c1")] });
+    const out = await retrieve(env, "q", { gameId: "g1" });
+    expect(out.map((r) => r.chunk.id)).toEqual(["c1"]);
+    expect(aiRun).toHaveBeenCalledWith(RERANK_MODEL, expect.objectContaining({ query: "q" }));
+  });
+
+  it("drops a reranked passage that scores below the rerank gate", async () => {
+    const { env } = build({
+      matches: [
+        { id: "c1", score: 0.9 },
+        { id: "c2", score: 0.9 },
+      ],
+      rows: [row("c1"), row("c2")],
+      rerank: () => [
+        { id: 0, score: RERANK_MIN_SCORE + 0.1 },
+        { id: 1, score: RERANK_MIN_SCORE - 0.1 },
+      ],
+    });
+    const out = await retrieve(env, "q", { gameId: "g1" });
+    expect(out.map((r) => r.chunk.id)).toEqual(["c1"]);
+  });
+
+  it("returns [] when every reranked passage is below the gate", async () => {
+    const { env } = build({
+      matches: [{ id: "c1", score: 0.9 }],
+      rows: [row("c1")],
+      rerank: () => [{ id: 0, score: RERANK_MIN_SCORE - 0.01 }],
+    });
+    expect(await retrieve(env, "q", { gameId: "g1" })).toEqual([]);
+  });
+
+  it("lets a weak-cosine synonym match reach the reranker, which rescues it", async () => {
+    // 0.40 is below the old 0.55 floor but above the new noise bound — proving the reranker,
+    // not the cosine floor, is now the judge.
+    const { env } = build({
+      matches: [{ id: "c1", score: 0.4 }],
+      rows: [row("c1")],
+      rerank: () => [{ id: 0, score: RERANK_MIN_SCORE + 0.2 }],
+    });
+    const out = await retrieve(env, "q", { gameId: "g1" });
+    expect(out.map((r) => r.chunk.id)).toEqual(["c1"]);
   });
 });

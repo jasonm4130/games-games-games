@@ -3,7 +3,7 @@ import type { RetrievedChunk } from "../../shared/types";
 import { db } from "../db";
 import { chunks, documents, games } from "../db/schema";
 import { embed } from "./embed";
-import { RERANK_MODEL, RETRIEVAL_FETCH_N, RETRIEVAL_MIN_SCORE, RETRIEVAL_TOP_K } from "./models";
+import { RERANK_MIN_SCORE, RERANK_MODEL, RETRIEVAL_FETCH_N, RETRIEVAL_MIN_SCORE, RETRIEVAL_TOP_K } from "./models";
 
 export interface RetrieveOptions {
   /**
@@ -39,7 +39,9 @@ export async function retrieve(
     filter: { game_id: opts.gameId },
   });
 
-  // Grounding floor: weak matches don't get to ground a Ruling (ADR 0004).
+  // Noise bound: drop obviously-unrelated candidates cheaply before the reranker. This is a
+  // permissive floor, NOT the relevance judge — the cross-encoder below decides what grounds a
+  // Ruling. (Cross-game isolation is the game_id filter above, not this floor.)
   const hits = result.matches.filter((match) => match.score >= RETRIEVAL_MIN_SCORE);
   if (hits.length === 0) return [];
 
@@ -83,9 +85,12 @@ export async function retrieve(
     ];
   });
 
-  // Rerank survivors with a cross-encoder; skip if there is nothing to reorder.
-  if (survivors.length <= 1) return survivors.slice(0, RETRIEVAL_TOP_K);
+  if (survivors.length === 0) return [];
 
+  // Rerank with a cross-encoder and gate on its relevance score. The reranker judges the
+  // (query, passage) pair together, so it handles synonyms/paraphrase the embedding floor can't.
+  // It returns results best-first; keep those at/above RERANK_MIN_SCORE.
+  //
   // The generated type for bge-reranker-base omits `query` and marks output fields optional;
   // cast through unknown so tsc accepts the correct runtime shape.
   const reranked = (await (
@@ -93,12 +98,13 @@ export async function retrieve(
   )(RERANK_MODEL, {
     query,
     contexts: survivors.map((c) => ({ text: c.chunk.text })),
-    top_k: RETRIEVAL_TOP_K,
+    top_k: Math.min(RETRIEVAL_TOP_K, survivors.length),
   })) as { response: { id: number; score: number }[] };
 
-  // Map reranker result ids back to survivors; reranker already returns best-first.
-  return reranked.response.flatMap(({ id }) => {
-    const chunk = survivors[id];
-    return chunk ? [chunk] : [];
-  });
+  return reranked.response
+    .filter(({ score }) => score >= RERANK_MIN_SCORE)
+    .flatMap(({ id }) => {
+      const chunk = survivors[id];
+      return chunk ? [chunk] : [];
+    });
 }
