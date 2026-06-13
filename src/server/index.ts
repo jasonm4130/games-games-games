@@ -11,10 +11,13 @@ export default {
       return Response.json({ ok: true });
     }
 
-    // TODO(rag): POST /api/games/:id/rulebooks — store the upload in R2
-    // (env.RULEBOOKS) and call ingest(env, { gameId, documentId, r2Key }).
+    // Ingestion is NOT a Worker route — it runs as an operator-side Node script
+    // (scripts/ingest.ts, see ADR 0005). The Worker only serves the SPA, the agent, and
+    // query-time endpoints.
 
-    // Routes /agents/rules-agent/:session to the RulesAgent Durable Object.
+    // routeAgentRequest matches the agent name in the URL as kebab-case ("rules-agent"),
+    // derived from the RulesAgent DO class; the client's useAgent({ agent }) must pass the
+    // same kebab string. Routes /agents/rules-agent/:session to the RulesAgent DO.
     const agentResponse = await routeAgentRequest(request, env);
     if (agentResponse) return agentResponse;
 

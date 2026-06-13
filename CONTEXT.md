@@ -12,7 +12,7 @@ _Avoid_: title, product
 
 **Rulebook**:
 A source document describing a Game's rules. One Game may have several (base rules,
-expansions, errata). Stored as an uploaded file in R2.
+expansions, errata). Stored in R2 as the source file an operator onboards.
 _Avoid_: manual, instructions, PDF (the PDF is just one encoding of a Rulebook)
 
 **Chunk**:
@@ -31,8 +31,8 @@ verify the Ruling against the Rulebook.
 _Avoid_: source, reference, link
 
 **Ingestion**:
-The pipeline that turns an uploaded Rulebook into indexed Chunks: parse → chunk → embed →
-upsert into Vectorize (with metadata in D1).
+The pipeline that turns an onboarded Rulebook into indexed Chunks: parse → chunk → embed →
+upsert into Vectorize (with metadata in D1). Triggered by Onboarding.
 _Avoid_: import, upload, processing
 
 **Retrieval**:
@@ -41,6 +41,19 @@ embedding.
 _Avoid_: search, lookup, query
 
 **Session**:
-A user's ongoing conversation with the agent about one or more Games — backed by one
-`RulesAgent` Durable Object instance.
+A user's ongoing conversation with the agent about **one active Game**, chosen from the
+Catalogue at the start and switchable during the conversation. Backed by one `RulesAgent`
+Durable Object instance, which holds the active Game. Retrieval is always scoped to the
+active Game.
 _Avoid_: conversation, thread, chat
+
+**Catalogue**:
+The set of Games that have been onboarded and are therefore selectable by a user. The
+Catalogue is curated by an operator, not built by end users — there is no end-user
+sign-up or self-serve upload.
+_Avoid_: library, collection, list
+
+**Onboarding**:
+The operator action of adding a Game and its Rulebook(s) to the Catalogue. The only way a
+Game enters the system; it triggers Ingestion. Distinct from a user starting a Session.
+_Avoid_: upload, import, signup

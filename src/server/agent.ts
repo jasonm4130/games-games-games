@@ -27,6 +27,18 @@ function lastUserText(messages: UIMessage[]): string {
 export class RulesAgent extends AIChatAgent<Env> {
   maxPersistedMessages = 100;
 
+  /** The active Game for this Session; Retrieval is scoped to it (ADR 0004). */
+  activeGameId?: string;
+
+  /**
+   * Select the Game this Session asks about.
+   * TODO(scoping): persist across DO hibernation (agent state) and wire the client picker.
+   */
+  @callable()
+  async selectGame(gameId: string): Promise<void> {
+    this.activeGameId = gameId;
+  }
+
   /** Callable from the client via `agent.stub.listGames()`. */
   @callable()
   async listGames(): Promise<Array<{ id: string; name: string }>> {
@@ -36,11 +48,19 @@ export class RulesAgent extends AIChatAgent<Env> {
     return result?.results ?? [];
   }
 
-  async onChatMessage(_onFinish: unknown, options?: OnChatMessageOptions) {
+  async onChatMessage(
+    // The framework invokes this with a no-op callback; persistence happens automatically
+    // via toUIMessageStreamResponse(), so it is intentionally unused. Type is pulled from
+    // the base signature to avoid guessing the AI SDK export name.
+    _onFinish: Parameters<AIChatAgent<Env>["onChatMessage"]>[0],
+    options?: OnChatMessageOptions,
+  ) {
     const workersai = createWorkersAI({ binding: this.env.AI });
     const messages = await convertToModelMessages(this.messages);
 
-    const passages = await retrieve(this.env, lastUserText(this.messages));
+    const passages = await retrieve(this.env, lastUserText(this.messages), {
+      gameId: this.activeGameId,
+    });
     const grounding =
       passages.length > 0
         ? passages.map((p, i) => `[${i + 1}] ${p.chunk.text}`).join("\n\n")

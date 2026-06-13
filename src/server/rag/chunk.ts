@@ -9,9 +9,11 @@ export interface ChunkOptions {
  * Split rulebook text into overlapping chunks. Pure and deterministic — this is
  * the unit exercised by the smoke test.
  *
- * This is a baseline character-window splitter. TODO(rag): split on semantic
- * boundaries (headings, numbered rules, sentences) so a Chunk is a coherent rule
- * rather than an arbitrary slice.
+ * Baseline character-window splitter. TODO(rag): replace with structure-aware,
+ * token-budgeted chunking via @langchain/textsplitters + the bge-m3 tokenizer — split on
+ * numbered-rule headings first (\n\d+\.\d+), then paragraphs/lines/sentences; target
+ * CHUNK_TARGET_TOKENS, cap CHUNK_MAX_TOKENS, overlap CHUNK_OVERLAP_TOKENS (see ./models);
+ * keep tables atomic; prepend the heading path to the embed text only, not the stored text.
  */
 export function chunkText(text: string, options: ChunkOptions = {}): string[] {
   const maxChars = options.maxChars ?? 1200;

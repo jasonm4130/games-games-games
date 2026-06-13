@@ -50,6 +50,12 @@ shapes against docs, not memory.
   package), not from `agents`. `routeAgentRequest` is from `agents`.
 - **React hooks are split:** `useAgent` from `agents/react`; `useAgentChat` from
   `@cloudflare/ai-chat/react`.
+- **Agent route name is kebab-case.** `routeAgentRequest` matches the agent in the URL as the
+  kebab-cased DO class name (`RulesAgent` → `/agents/rules-agent/:id`), and
+  `useAgent({ agent })` must pass that same kebab string (`"rules-agent"`). PascalCase can
+  silently fail to connect.
+- **`onChatMessage`'s first param is a no-op callback** — message persistence is automatic via
+  `toUIMessageStreamResponse()`. Keep the second `options?` param (it carries `abortSignal`).
 - **AI SDK v6 message shape is `parts[]`**, not `content`. `sendMessage({ role, parts })`.
 - **Durable Object migration uses `new_sqlite_classes`** (NOT `new_classes`) — the legacy
   key breaks Agents SDK SQLite state.

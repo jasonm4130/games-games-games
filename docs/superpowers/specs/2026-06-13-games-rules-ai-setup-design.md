@@ -7,9 +7,10 @@
 ## Goal
 
 Stand up a Cloudflare-native **RAG-over-rulebooks** app and make this a first-class
-AI-driven-development repository. A user uploads or selects a tabletop game's rulebook;
-the document is chunked, embedded, and indexed; a chat agent answers rules questions
-grounded in that content with citations.
+AI-driven-development repository. An operator onboards a tabletop game's rulebook into a
+curated Catalogue; the document is chunked, embedded, and indexed. A user picks one Game
+from the Catalogue and a chat agent answers rules questions grounded in that Game's
+rulebooks, with verifiable citations.
 
 This document codifies the validated decisions. It is a foundation, not the whole product.
 
@@ -30,9 +31,11 @@ This document codifies the validated decisions. It is a foundation, not the whol
 
 **Out of scope (later feature phases):**
 
-- PDF parsing, chunking, and the embed→upsert ingestion implementation.
-- Retrieval-augmented answer wiring (the agent calling Vectorize + citing).
-- File-upload UI and auth.
+- The operator ingestion script (`scripts/ingest.ts`): PDF parsing, chunking, contextual
+  blurbs, and the embed→upsert implementation (ADR 0005).
+- Retrieval-augmented answer wiring (the agent calling Vectorize + rendering Citations).
+- The Catalogue / Game-picker UI and the structured-citation cards.
+- Auth — there is no end-user onboarding; the Catalogue is operator-curated.
 - CI/CD, production deploy, observability dashboards.
 - Tests beyond a smoke test.
 
@@ -59,10 +62,11 @@ Internal structure keeps units small and legible for humans and agents:
 src/
   server/        Worker entry, the agent, and the RAG library
     index.ts     main module: exports RulesAgent + default fetch handler
-    agent.ts     RulesAgent (AIChatAgent) — streams answers, owns the retrieval tool
+    agent.ts     RulesAgent (AIChatAgent) — streams answers, scoped to the active Game
     rag/         embed.ts · chunk.ts · retrieve.ts · ingest.ts  (seams, mostly TODO)
   client/        React SPA (main.tsx, App.tsx, styles.css)
   shared/        types shared across server + client (domain model)
+scripts/         ingest.ts — operator-side onboarding pipeline (ADR 0005; feature phase)
 ```
 
 ## Stack (verified against npm + Cloudflare docs, 2026-06-13)
@@ -98,24 +102,30 @@ else is served as static SPA assets with `not_found_handling: single-page-applic
 ## Data model (D1 — `migrations/0001_init.sql`)
 
 ```
-games(id, name, edition, created_at)
-documents(id, game_id → games.id, r2_key, title, status, created_at)
-chunks(id, document_id → documents.id, ordinal, text, vector_id, created_at)
+games(id, name, edition, created_at)  -- UNIQUE(name, COALESCE(edition,''))
+documents(id, game_id → games.id, r2_key, title, kind, status, chunks_count, ingested_at, created_at)
+chunks(id, document_id → documents.id, ordinal, text, page_start, page_end, context_blurb, created_at)
 ```
 
-Vectorize stores the embeddings keyed by `vector_id`; D1 holds metadata and the chunk
-text used to render **Citations** back to the user.
+The chunk `id` **is** the Vectorize vector id (no separate `vector_id` column); a query
+match hydrates its text + page span by `match.id = chunks.id`. D1 holds the metadata and the
+chunk text used to render **Citations** (with page numbers) back to the user. `documents.kind`
+(`base|expansion|errata`) reserves errata-over-base precedence; `context_blurb` holds the
+contextual-retrieval blurb (prepended to the text at embed time only).
 
 ## Embedding model — locked (immutable decision)
 
 **`@cf/baai/bge-m3`, 1024 dimensions, cosine metric.** A Vectorize index's dimensions
 and metric cannot change after creation, so this is recorded as ADR 0002. Decisive
-reasons: bge-m3 has an **8,192-token context** (bge-base/large cap at 512 and silently
-truncate — fatal for rulebook chunks with multi-step clauses and tables); it is the
-**cheapest** embedding model in the catalog (~$0.012/M tokens); it is **multilingual**;
-and **1024/cosine future-proofs** the index (matches bge-large and the newer
-qwen3-embedding, both 1024/cosine), so the model can be swapped later without re-indexing.
-No `pooling` parameter is needed (bge-m3 pools internally).
+reasons: it is the **cheapest** embedding model in the catalog (~$0.012/M tokens); it is
+**multilingual**; and **1024/cosine future-proofs** the index (matches bge-large and the
+newer qwen3-embedding, both 1024/cosine), so the model can be swapped later without
+re-indexing. Its **8,192-token context is headroom, not a target** — BAAI recommends
+chunking at ~512 tokens (retrieval degrades with larger chunks), so we target ~512 / cap
+1024 tokens; the headroom just lets an occasional long numbered rule embed whole. No
+`pooling` parameter and no query/passage prefix are needed (bge-m3 pools internally and is
+symmetric). Chunking stack: `pdfjs-dist` + `@langchain/textsplitters` + the bge-m3
+tokenizer; Anthropic-style contextual blurbs are opt-in.
 
 Text-generation model is **not** locked in (easy to change): default
 `@cf/meta/llama-3.3-70b-instruct-fp8-fast` behind a single config constant.
@@ -123,13 +133,15 @@ Text-generation model is **not** locked in (easy to change): default
 ## What we scaffold vs. stub
 
 - **Real:** the Worker entry + routing, `RulesAgent` streaming a reply via
-  `workers-ai-provider`, the D1 migration, all bindings, the full tooling and AI-dev
-  tooling, the `ggg_*` resource additions to the central Terraform repo + the
-  provisioning script.
+  `workers-ai-provider` (scoped to the active Game via `selectGame`), the D1 migration
+  (per-Game uniqueness, `documents.kind`, page columns, `context_blurb`), all bindings, the
+  full tooling and AI-dev tooling, the `ggg_*` resource additions to the central Terraform
+  repo + the provisioning script.
 - **Typed seams (TODO):** `rag/embed.ts` (call `@cf/baai/bge-m3`), `rag/chunk.ts`
-  (split rulebook text), `rag/retrieve.ts` (query Vectorize), `rag/ingest.ts`
-  (parse → chunk → embed → upsert). Each has a clear signature and a `// TODO(rag):`
-  marker so the feature phase is a fill-in, not a redesign.
+  (structure-aware token chunking), `rag/retrieve.ts` (query Vectorize, `gameId` filter +
+  `RETRIEVAL_MIN_SCORE` floor), `rag/ingest.ts` (the contract for the operator script,
+  ADR 0005). Each has a clear signature and a `// TODO(rag):` marker so the feature phase
+  is a fill-in, not a redesign.
 
 ## AI-dev tooling
 
@@ -141,7 +153,7 @@ Text-generation model is **not** locked in (easy to change): default
 - `CONTEXT.md` — seeded domain glossary (Game, Rulebook, Ruling, Citation, Chunk,
   Ingestion, Retrieval, Session).
 - `docs/adr/` — 0001 single-Worker architecture, 0002 embedding/Vectorize, 0003
-  Terraform/wrangler split.
+  Terraform/wrangler split, 0004 per-Game retrieval scoping, 0005 operator-script ingestion.
 
 ## Provisioning workflow
 
@@ -164,6 +176,10 @@ D1 Edit, Vectorize Edit, Account Settings Read) via 1Password.
 - `pnpm build` (Vite) produces a client bundle and bundles the Worker.
 - `pnpm test` runs the smoke test green.
 - The R2/D1/Vectorize additions in `../jasonm4130-cf` pass `terraform validate`.
+- **Runtime boot (after provisioning):** `pnpm dev` starts and `curl localhost:5173/api/health`
+  returns `{"ok":true}`; one chat message round-trips (exercises the kebab-case agent route).
+  `wrangler.jsonc`'s `database_id` is a placeholder until `scripts/provision.sh` runs — the
+  static checks pass before this, but the runtime won't boot until the D1 id is wired.
 
 ## Implementation checklist
 

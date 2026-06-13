@@ -11,7 +11,8 @@ export default function App() {
   const [input, setInput] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
 
-  const agent = useAgent({ agent: "RulesAgent" });
+  // Agent name is kebab-case in the URL ("rules-agent"), not the PascalCase DO class name.
+  const agent = useAgent({ agent: "rules-agent" });
   const { messages, sendMessage, status, clearHistory, stop } = useAgentChat({ agent });
 
   const isStreaming = status === "streaming" || status === "submitted";
