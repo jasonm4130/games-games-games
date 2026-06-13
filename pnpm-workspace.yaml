@@ -6,5 +6,9 @@ allowBuilds:
   core-js-pure: true
   esbuild: true
   node-liblzma: true
+  # Pulled in by @huggingface/transformers, used ONLY for its pure-JS bge-m3 tokenizer in
+  # scripts/ingest.ts. These build native ONNX bindings we never exercise (no inference), so skip.
+  onnxruntime-node: false
+  protobufjs: false
   sharp: true
   workerd: true

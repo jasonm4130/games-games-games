@@ -4,9 +4,10 @@ A Cloudflare-native **RAG-over-rulebooks** app. Upload a tabletop game's ruleboo
 chunked, embedded into Vectorize, and indexed → the `RulesAgent` answers rules questions
 grounded in it, with citations back to the source passages.
 
-> **Status:** setup & tooling scaffold. The app boots, the agent streams replies, and every
-> binding is wired. The RAG ingestion/retrieval pipeline exists as typed seams (`src/server/rag/`)
-> marked `// TODO(rag):` — that's the next feature phase.
+> **Status:** RAG pipeline implemented. Retrieval runs in the Worker (Game-scoped, grounded,
+> cited); ingestion is an operator script (`pnpm ingest`). Build, typecheck, and unit tests are
+> green; live end-to-end verification and calibration of the retrieval score floor are the
+> remaining step.
 
 ## Stack
 
@@ -52,6 +53,48 @@ cd ../jasonm4130-cf && make plan && make apply
 
 Then deploy with `pnpm deploy`.
 
+## Onboarding a rulebook (operator ingestion)
+
+Ingestion runs as an **operator-side Node script** ([ADR 0005](./docs/adr/0005-operator-script-ingestion.md))
+— a Worker can't parse a large PDF within its 128 MB / 30 s limits. The script reads a PDF from
+R2, extracts per-page text (`pdfjs-dist`), chunks it on bge-m3 token budgets, embeds it, and
+writes vectors (Vectorize) + chunk rows (D1). Re-running for the same `--game` + `--r2-key`
+replaces that document's chunks.
+
+**One-time** — the Vectorize metadata indexes must exist *before* the first ingest (`game_id`
+filtering only applies to vectors written after the index exists):
+
+```sh
+wrangler vectorize create-metadata-index ggg-rules-index --property-name=game_id --type=string
+wrangler vectorize create-metadata-index ggg-rules-index --property-name=document_id --type=string
+```
+
+**Per rulebook:**
+
+```sh
+# 1. Upload the PDF to R2
+wrangler r2 object put ggg-rulebooks/catan/base-5th.pdf --file ./base-5th.pdf --remote
+
+# 2. Ingest it (everything rides your `wrangler login` — no Cloudflare token to export)
+pnpm ingest --game "Catan" --edition "5th" --document "Base rules" \
+  --r2-key catan/base-5th.pdf            # [--kind base|expansion|errata] [--contextual]
+```
+
+**Auth:** Everything rides your `wrangler login` session — no Cloudflare token to manage. R2, D1,
+and Vectorize go through `wrangler` directly. Embedding is the one call `wrangler` can't run (it has
+no AI-inference command), so it hits the Workers AI REST API — but the bearer and account id for it
+are pulled from your session too (`wrangler auth token` + `wrangler whoami`), so there's still no
+`CLOUDFLARE_AI_TOKEN` and no `CLOUDFLARE_ACCOUNT_ID` to set (the latter only if your login spans
+multiple accounts). Every `wrangler` subprocess has `CLOUDFLARE_API_TOKEN` stripped so a stale shell
+token can't shadow the login. The only key the script ever needs is `MOONSHOT_API_KEY`, and only
+with `--contextual` (Contextual Retrieval — a one-line situating blurb per chunk via **Kimi k2.7**
+on Moonshot, prepended at embed time only); without the flag, no key at all. Realtime answers stay
+on Workers AI (Llama 3.3 70B); only this offline blurb step calls Moonshot.
+
+Notes: only text-layer PDFs are supported (no OCR — a scanned PDF fails loudly). Vectors index
+asynchronously, so allow a few seconds after ingest before querying. `documents.status`
+advances `pending → ingesting → ready` (or `failed`).
+
 ## Commands
 
 | Command | Does |
@@ -59,6 +102,7 @@ Then deploy with `pnpm deploy`.
 | `pnpm dev` | SPA + Worker + agent locally with HMR |
 | `pnpm build` | Vite build (client bundle + Worker) |
 | `pnpm deploy` | `vite build && wrangler deploy` |
+| `pnpm ingest` | operator ingestion — onboard a rulebook PDF (see above) |
 | `pnpm types` | regenerate `env.d.ts` from `wrangler.jsonc` |
 | `pnpm check` | Biome (lint + format) + `tsc` |
 | `pnpm test` | Vitest (Workers pool) |
@@ -70,11 +114,11 @@ src/
   server/        Worker entry, the agent, and the RAG library
     index.ts     main module — exports RulesAgent + the fetch handler
     agent.ts     RulesAgent (AIChatAgent)
-    rag/         embed · chunk · retrieve · ingest  (typed seams, TODO)
+    rag/         embed · chunk · retrieve · models  (query-time RAG, in the Worker)
   client/        React SPA
   shared/        types shared by server + client
 migrations/      D1 schema
-scripts/         provision.sh (app-side: D1 id + migration)
+scripts/         provision.sh (D1 id + migration) · ingest.ts (operator ingestion)
 docs/
   adr/           architecture decision records
   superpowers/   design specs

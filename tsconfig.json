@@ -1,4 +1,4 @@
 {
   "extends": "agents/tsconfig",
-  "include": ["src", "env.d.ts"]
+  "include": ["src", "scripts", "env.d.ts"]
 }
