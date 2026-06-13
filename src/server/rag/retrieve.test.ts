@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { RERANK_MODEL, RERANK_MIN_SCORE, RETRIEVAL_MIN_SCORE } from "./models";
+import { RERANK_MIN_SCORE, RERANK_MODEL, RETRIEVAL_MIN_SCORE } from "./models";
 
 // Drizzle row shape after the hydration JOIN (camelCase, as selected in retrieve.ts).
 interface HydratedRow {

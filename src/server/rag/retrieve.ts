@@ -3,7 +3,13 @@ import type { RetrievedChunk } from "../../shared/types";
 import { db } from "../db";
 import { chunks, documents, games } from "../db/schema";
 import { embed } from "./embed";
-import { RERANK_MIN_SCORE, RERANK_MODEL, RETRIEVAL_FETCH_N, RETRIEVAL_MIN_SCORE, RETRIEVAL_TOP_K } from "./models";
+import {
+  RERANK_MIN_SCORE,
+  RERANK_MODEL,
+  RETRIEVAL_FETCH_N,
+  RETRIEVAL_MIN_SCORE,
+  RETRIEVAL_TOP_K,
+} from "./models";
 
 export interface RetrieveOptions {
   /**
