@@ -1,4 +1,7 @@
+import { eq, inArray } from "drizzle-orm";
 import type { RetrievedChunk } from "../../shared/types";
+import { db } from "../db";
+import { chunks, documents, games } from "../db/schema";
 import { embed } from "./embed";
 import { RERANK_MODEL, RETRIEVAL_FETCH_N, RETRIEVAL_MIN_SCORE, RETRIEVAL_TOP_K } from "./models";
 
@@ -10,16 +13,6 @@ export interface RetrieveOptions {
    */
   gameId?: string;
   topK?: number;
-}
-
-interface ChunkRow {
-  id: string;
-  document_id: string;
-  ordinal: number;
-  text: string;
-  page_start: number | null;
-  page_end: number | null;
-  game_name: string;
 }
 
 /**
@@ -51,18 +44,22 @@ export async function retrieve(
   if (hits.length === 0) return [];
 
   const ids = hits.map((match) => match.id);
-  const placeholders = ids.map(() => "?").join(", ");
-  const { results } = await env.DB.prepare(
-    `SELECT c.id, c.document_id, c.ordinal, c.text, c.page_start, c.page_end, g.name AS game_name
-     FROM chunks c
-     JOIN documents d ON d.id = c.document_id
-     JOIN games g ON g.id = d.game_id
-     WHERE c.id IN (${placeholders})`,
-  )
-    .bind(...ids)
-    .all<ChunkRow>();
+  const rows = await db(env)
+    .select({
+      id: chunks.id,
+      documentId: chunks.documentId,
+      ordinal: chunks.ordinal,
+      text: chunks.text,
+      pageStart: chunks.pageStart,
+      pageEnd: chunks.pageEnd,
+      gameName: games.name,
+    })
+    .from(chunks)
+    .innerJoin(documents, eq(documents.id, chunks.documentId))
+    .innerJoin(games, eq(games.id, documents.gameId))
+    .where(inArray(chunks.id, ids));
 
-  const byId = new Map(results.map((row) => [row.id, row]));
+  const byId = new Map(rows.map((row) => [row.id, row]));
 
   // Build ordered survivors (preserving Vectorize score order; skip any match missing its D1 row).
   const survivors: RetrievedChunk[] = hits.flatMap((match) => {
@@ -72,13 +69,13 @@ export async function retrieve(
       {
         chunk: {
           id: row.id,
-          documentId: row.document_id,
+          documentId: row.documentId,
           ordinal: row.ordinal,
           text: row.text,
-          pageStart: row.page_start,
-          pageEnd: row.page_end,
+          pageStart: row.pageStart,
+          pageEnd: row.pageEnd,
         },
-        gameName: row.game_name,
+        gameName: row.gameName,
         score: match.score, // cosine score — preserved in final output for Citation display
       },
     ];

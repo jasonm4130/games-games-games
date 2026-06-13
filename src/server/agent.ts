@@ -7,8 +7,11 @@ import {
   streamText,
   type UIMessage,
 } from "ai";
+import { sql } from "drizzle-orm";
 import { createWorkersAI } from "workers-ai-provider";
 import type { Citation, RulesAgentState, RulesUIMessage } from "../shared/types";
+import { db } from "./db";
+import { dailyUsage, games } from "./db/schema";
 import { GENERATION_MODEL } from "./rag/models";
 import { retrieve } from "./rag/retrieve";
 
@@ -61,11 +64,15 @@ export class RulesAgent extends AIChatAgent<Env, RulesAgentState> {
 
   /** Callable from the client via `agent.stub.listGames()`. */
   @callable()
-  async listGames(): Promise<Array<{ id: string; name: string }>> {
-    const result = await this.env.DB.prepare("SELECT id, name FROM games ORDER BY name")
-      .all<{ id: string; name: string }>()
-      .catch(() => null);
-    return result?.results ?? [];
+  async listGames(): Promise<Array<{ id: string; name: string; edition: string | null }>> {
+    try {
+      return await db(this.env)
+        .select({ id: games.id, name: games.name, edition: games.edition })
+        .from(games)
+        .orderBy(games.name);
+    } catch {
+      return [];
+    }
   }
 
   /**
@@ -133,11 +140,14 @@ export class RulesAgent extends AIChatAgent<Env, RulesAgentState> {
     // (3) Global daily budget breaker — atomically count this in-scope (LLM-bound) query.
     // Per-colo rate limits can't cap a daily total; this one D1 row does. Once over budget the
     // goblin "naps" with a canned reply (no model call) for the rest of the UTC day.
-    const usage = await this.env.DB.prepare(
-      `INSERT INTO daily_usage (day, count) VALUES (date('now'), 1)
-       ON CONFLICT(day) DO UPDATE SET count = count + 1
-       RETURNING count`,
-    ).first<{ count: number }>();
+    const [usage] = await db(this.env)
+      .insert(dailyUsage)
+      .values({ day: sql`date('now')`, count: 1 })
+      .onConflictDoUpdate({
+        target: dailyUsage.day,
+        set: { count: sql`${dailyUsage.count} + 1` },
+      })
+      .returning({ count: dailyUsage.count });
     if (usage && usage.count > DAILY_BUDGET) {
       return this.staticReply(NAPPING);
     }

@@ -1,32 +1,60 @@
 import { describe, expect, it, vi } from "vitest";
-import { RETRIEVAL_MIN_SCORE } from "./models";
-import { retrieve } from "./retrieve";
+import { RERANK_MODEL, RETRIEVAL_MIN_SCORE } from "./models";
 
-interface FakeRow {
+// Drizzle row shape after the hydration JOIN (camelCase, as selected in retrieve.ts).
+interface HydratedRow {
   id: string;
-  document_id: string;
+  documentId: string;
   ordinal: number;
   text: string;
-  page_start: number | null;
-  page_end: number | null;
-  game_name: string;
+  pageStart: number | null;
+  pageEnd: number | null;
+  gameName: string;
 }
 
-function row(id: string, overrides: Partial<FakeRow> = {}): FakeRow {
+// Rows the mocked Drizzle query resolves to; each test sets `hoisted.rows` via build().
+const hoisted = vi.hoisted(() => ({ rows: [] as HydratedRow[] }));
+
+// Mock the db() helper so retrieve() exercises its own orchestration (floor, ordering, rerank
+// id-mapping, skip-missing-row) without standing up a real D1 or drizzle's SQL layer. The
+// builder is chainable up to .where(), which is the awaited terminal in retrieve().
+vi.mock("../db", () => {
+  const builder = {
+    select: () => builder,
+    from: () => builder,
+    innerJoin: () => builder,
+    where: () => Promise.resolve(hoisted.rows),
+  };
+  return { db: () => builder };
+});
+
+import { retrieve } from "./retrieve";
+
+function row(id: string, overrides: Partial<HydratedRow> = {}): HydratedRow {
   return {
     id,
-    document_id: "doc-1",
+    documentId: "doc-1",
     ordinal: 0,
     text: `text for ${id}`,
-    page_start: 1,
-    page_end: 1,
-    game_name: "Catan",
+    pageStart: 1,
+    pageEnd: 1,
+    gameName: "Catan",
     ...overrides,
   };
 }
 
-function build(opts: { matches: Array<{ id: string; score: number }>; rows: FakeRow[] }) {
-  const aiRun = vi.fn(async () => ({ data: [[0.1, 0.2, 0.3]] }));
+function build(opts: { matches: Array<{ id: string; score: number }>; rows: HydratedRow[] }) {
+  hoisted.rows = opts.rows;
+  // env.AI.run serves two models: bge-m3 embeddings ({ data }) and the reranker ({ response }).
+  // The reranker mock is identity — it returns ids in input order, so retrieve preserves the
+  // survivor (Vectorize score) order, isolating the test from reranker model behaviour.
+  const aiRun = vi.fn(async (model: string, input: unknown) => {
+    if (model === RERANK_MODEL) {
+      const { contexts } = input as { contexts: unknown[] };
+      return { response: contexts.map((_, i) => ({ id: i, score: 1 - i * 0.01 })) };
+    }
+    return { data: [[0.1, 0.2, 0.3]] };
+  });
   const query = vi.fn(async (_vector: number[], _options: unknown) => ({
     matches: opts.matches,
     count: opts.matches.length,
@@ -34,11 +62,6 @@ function build(opts: { matches: Array<{ id: string; score: number }>; rows: Fake
   const env = {
     AI: { run: aiRun },
     RULES_IDX: { query },
-    DB: {
-      prepare: () => ({
-        bind: () => ({ all: async () => ({ results: opts.rows }) }),
-      }),
-    },
   } as unknown as Env;
   return { env, aiRun, query };
 }
@@ -85,15 +108,15 @@ describe("retrieve", () => {
     expect(await retrieve(env, "q", { gameId: "g1" })).toEqual([]);
   });
 
-  it("hydrates from D1 and preserves Vectorize score order", async () => {
+  it("hydrates from D1 and preserves score order through an identity rerank", async () => {
     const { env } = build({
       matches: [
         { id: "c2", score: 0.9 },
         { id: "c1", score: 0.8 },
       ],
       rows: [
-        row("c1", { ordinal: 1, page_start: 4, page_end: 5 }),
-        row("c2", { ordinal: 2, game_name: "Catan", page_start: 7, page_end: 7 }),
+        row("c1", { ordinal: 1, pageStart: 4, pageEnd: 5 }),
+        row("c2", { ordinal: 2, gameName: "Catan", pageStart: 7, pageEnd: 7 }),
       ],
     });
     const out = await retrieve(env, "q", { gameId: "g1" });

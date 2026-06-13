@@ -46,7 +46,10 @@
       "binding": "DB",
       "database_name": "ggg-db",
       "database_id": "05e532f4-7ba6-47c1-9f5d-33a15ea1a2b8",
-      "migrations_dir": "migrations"
+      "migrations_dir": "migrations",
+      // Retrieval joins remote Vectorize matches against D1, so dev must use the same remote
+      // DB (like AI + Vectorize above) — a local D1 would be empty and hydrate nothing.
+      "remote": true
     }
   ],
 

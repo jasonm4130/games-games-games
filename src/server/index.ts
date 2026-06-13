@@ -1,40 +1,34 @@
-import { routeAgentRequest } from "agents";
+import { Hono } from "hono";
+import { agentsMiddleware } from "hono-agents";
 
 // The DurableObject class must be a named export of the Worker's main module.
 export { RulesAgent } from "./agent";
 
-export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const url = new URL(request.url);
+const app = new Hono<{ Bindings: Env }>();
 
-    if (url.pathname === "/api/health") {
-      return Response.json({ ok: true });
-    }
+// Per-IP guardrail on agent traffic (connections + messages all hit /agents/*). Keyed by the
+// client IP so one abuser can't exhaust the global budget; runs before the agent is routed.
+// Per-colo, so it caps bursts, not a daily total (that's the D1 breaker in the agent).
+app.use("/agents/*", async (c, next) => {
+  const ip = c.req.header("cf-connecting-ip") ?? "unknown";
+  const { success } = await c.env.IP_LIMITER.limit({ key: ip });
+  if (!success) {
+    return c.text("Too Many Requests", 429, { "Retry-After": "60" });
+  }
+  await next();
+});
 
-    // Ingestion is NOT a Worker route — it runs as an operator-side Node script
-    // (scripts/ingest.ts, see ADR 0005). The Worker only serves the SPA, the agent, and
-    // query-time endpoints.
+app.get("/api/health", (c) => c.json({ ok: true }));
 
-    // Per-IP guardrail on agent traffic (connections + messages all hit /agents/*). Keyed by
-    // the client IP so one abuser can't exhaust the global budget; checked before the agent
-    // is even routed. Per-colo, so it caps bursts, not a daily total (that's the D1 breaker).
-    if (url.pathname.startsWith("/agents/")) {
-      const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
-      const { success } = await env.IP_LIMITER.limit({ key: ip });
-      if (!success) {
-        return new Response("Too Many Requests", {
-          status: 429,
-          headers: { "Retry-After": "60" },
-        });
-      }
-    }
+// Ingestion is NOT a Worker route — it runs as an operator-side Node script (scripts/ingest.ts,
+// ADR 0005). The SPA is served by the assets binding; its run_worker_first only forwards
+// /agents/* and /api/* to this Worker, so everything else never reaches Hono.
 
-    // routeAgentRequest matches the agent name in the URL as kebab-case ("rules-agent"),
-    // derived from the RulesAgent DO class; the client's useAgent({ agent }) must pass the
-    // same kebab string. Routes /agents/rules-agent/:session to the RulesAgent DO.
-    const agentResponse = await routeAgentRequest(request, env);
-    if (agentResponse) return agentResponse;
+// agentsMiddleware handles the WebSocket upgrade + agent HTTP routing for
+// /agents/{agent-name}/{instance} (RulesAgent → kebab "rules-agent"); it calls next() for
+// non-agent paths, so the routes above still resolve. See hono-agents.
+app.use("*", agentsMiddleware());
 
-    return new Response("Not found", { status: 404 });
-  },
-} satisfies ExportedHandler<Env>;
+app.notFound((c) => c.text("Not found", 404));
+
+export default app;
