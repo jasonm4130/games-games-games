@@ -1,6 +1,6 @@
 import type { RetrievedChunk } from "../../shared/types";
 import { embed } from "./embed";
-import { RETRIEVAL_MIN_SCORE, RETRIEVAL_TOP_K } from "./models";
+import { RERANK_MODEL, RETRIEVAL_FETCH_N, RETRIEVAL_MIN_SCORE, RETRIEVAL_TOP_K } from "./models";
 
 export interface RetrieveOptions {
   /**
@@ -24,9 +24,10 @@ interface ChunkRow {
 
 /**
  * Retrieve the Chunks most relevant to a question, scoped to one Game. Embeds the question
- * (bge-m3, no query prefix), queries Vectorize filtered by `game_id`, drops matches below the
- * grounding floor, then hydrates text + page span + Game name from D1 by joining
- * `match.id = chunks.id` (the chunk id IS the vector id — ADR 0004). Score order is preserved.
+ * (bge-m3, no query prefix), queries Vectorize filtered by `game_id` (over-fetching RETRIEVAL_FETCH_N
+ * candidates), drops matches below the cosine grounding floor (the in-scope gate — ADR 0004), hydrates
+ * text + page span + Game name from D1, then reranks survivors with bge-reranker-base and returns the
+ * top RETRIEVAL_TOP_K in reranker order. `.score` on each result stays the original cosine score.
  */
 export async function retrieve(
   env: Env,
@@ -40,7 +41,7 @@ export async function retrieve(
   if (!vector) return [];
 
   const result = await env.RULES_IDX.query(vector, {
-    topK: opts.topK ?? RETRIEVAL_TOP_K,
+    topK: opts.topK ?? RETRIEVAL_FETCH_N,
     returnMetadata: "none",
     filter: { game_id: opts.gameId },
   });
@@ -63,8 +64,8 @@ export async function retrieve(
 
   const byId = new Map(results.map((row) => [row.id, row]));
 
-  // Preserve Vectorize score order; skip any match missing its D1 row.
-  return hits.flatMap((match) => {
+  // Build ordered survivors (preserving Vectorize score order; skip any match missing its D1 row).
+  const survivors: RetrievedChunk[] = hits.flatMap((match) => {
     const row = byId.get(match.id);
     if (!row) return [];
     return [
@@ -78,8 +79,27 @@ export async function retrieve(
           pageEnd: row.page_end,
         },
         gameName: row.game_name,
-        score: match.score,
+        score: match.score, // cosine score — preserved in final output for Citation display
       },
     ];
+  });
+
+  // Rerank survivors with a cross-encoder; skip if there is nothing to reorder.
+  if (survivors.length <= 1) return survivors.slice(0, RETRIEVAL_TOP_K);
+
+  // The generated type for bge-reranker-base omits `query` and marks output fields optional;
+  // cast through unknown so tsc accepts the correct runtime shape.
+  const reranked = (await (
+    env.AI.run as (m: string, i: Record<string, unknown>) => Promise<unknown>
+  )(RERANK_MODEL, {
+    query,
+    contexts: survivors.map((c) => ({ text: c.chunk.text })),
+    top_k: RETRIEVAL_TOP_K,
+  })) as { response: { id: number; score: number }[] };
+
+  // Map reranker result ids back to survivors; reranker already returns best-first.
+  return reranked.response.flatMap(({ id }) => {
+    const chunk = survivors[id];
+    return chunk ? [chunk] : [];
   });
 }

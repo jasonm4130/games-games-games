@@ -28,7 +28,22 @@ export const TABLE_MAX_TOKENS = 1500;
 /**
  * Cosine-similarity floor for retrieved Chunks. Matches below it are dropped; if none
  * survive, Retrieval returns [] and the agent gives its "not covered" answer instead of
- * grounding on weak passages (ADR 0004). Placeholder — calibrate against real recall data.
+ * grounding on weak passages (ADR 0004).
+ *
+ * Calibrated 2026-06-13 against the first live rulebook (Monopoly, bge-m3): in-scope top
+ * matches scored 0.61–0.65 (relevant secondaries 0.55–0.57), an easy out-of-scope question
+ * ~0.32, and the hard negative — another game's rules (chess) asked against this Game — topped
+ * out at ~0.53. 0.55 rejects that cross-game leakage (the worst failure: answering confidently
+ * from the wrong rulebook) while keeping in-scope hits, biasing toward "not covered" over a wrong
+ * grounded answer. Small sample (one rulebook) — revisit as more Games are onboarded.
  */
-export const RETRIEVAL_MIN_SCORE = 0.5;
+export const RETRIEVAL_MIN_SCORE = 0.55;
 export const RETRIEVAL_TOP_K = 5;
+/** Over-fetch count: how many Vectorize candidates to pull before the reranker narrows to RETRIEVAL_TOP_K. */
+export const RETRIEVAL_FETCH_N = 20;
+
+/**
+ * Cross-encoder reranking model. Applied after the cosine floor to reorder surviving
+ * candidates by actual passage relevance before slicing to RETRIEVAL_TOP_K.
+ */
+export const RERANK_MODEL = "@cf/baai/bge-reranker-base";
