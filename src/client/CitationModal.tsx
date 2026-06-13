@@ -57,7 +57,7 @@ export function CitationModal({ citation, n, onClose }: Props) {
           <span className="cite-modal__kicker">From the rulebook</span>
           <h2 id="cite-modal-title" className="cite-modal__title">
             <span className="cite-modal__n">[{n}]</span>
-            {citation.gameName}
+            {citation.gameName} — {citation.documentTitle}
             {page ? <span className="cite-modal__page"> · {page}</span> : null}
           </h2>
           <button

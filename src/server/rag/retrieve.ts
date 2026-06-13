@@ -53,6 +53,7 @@ export async function retrieve(
       pageStart: chunks.pageStart,
       pageEnd: chunks.pageEnd,
       gameName: games.name,
+      documentTitle: documents.title,
     })
     .from(chunks)
     .innerJoin(documents, eq(documents.id, chunks.documentId))
@@ -76,6 +77,7 @@ export async function retrieve(
           pageEnd: row.pageEnd,
         },
         gameName: row.gameName,
+        documentTitle: row.documentTitle,
         score: match.score, // cosine score — preserved in final output for Citation display
       },
     ];

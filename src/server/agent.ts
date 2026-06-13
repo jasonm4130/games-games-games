@@ -161,6 +161,7 @@ export class RulesAgent extends AIChatAgent<Env, RulesAgentState> {
       chunkId: p.chunk.id,
       documentId: p.chunk.documentId,
       gameName: p.gameName,
+      documentTitle: p.documentTitle,
       ordinal: p.chunk.ordinal,
       pageStart: p.chunk.pageStart,
       pageEnd: p.chunk.pageEnd,

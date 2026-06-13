@@ -10,6 +10,7 @@ interface HydratedRow {
   pageStart: number | null;
   pageEnd: number | null;
   gameName: string;
+  documentTitle: string;
 }
 
 // Rows the mocked Drizzle query resolves to; each test sets `hoisted.rows` via build().
@@ -39,6 +40,7 @@ function row(id: string, overrides: Partial<HydratedRow> = {}): HydratedRow {
     pageStart: 1,
     pageEnd: 1,
     gameName: "Catan",
+    documentTitle: "Base Game",
     ...overrides,
   };
 }

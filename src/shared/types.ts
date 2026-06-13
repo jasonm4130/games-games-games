@@ -76,6 +76,8 @@ export interface RetrievedChunk {
   chunk: Pick<Chunk, "id" | "documentId" | "ordinal" | "text" | "pageStart" | "pageEnd">;
   /** Name of the Game the chunk belongs to (retrieval is Game-scoped) — for Citations. */
   gameName: string;
+  /** Title of the source Rulebook (Document) — disambiguates which book within a Game. */
+  documentTitle: string;
   score: number;
 }
 
@@ -84,6 +86,8 @@ export interface Citation {
   chunkId: string;
   documentId: string;
   gameName: string;
+  /** Title of the source Rulebook — shown so a Citation names which book within a Game. */
+  documentTitle: string;
   ordinal: number;
   pageStart: number | null;
   pageEnd: number | null;

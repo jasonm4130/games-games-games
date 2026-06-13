@@ -100,7 +100,7 @@ export function Chat({
                           >
                             <span className="cite-chip__n">[{i + 1}]</span>
                             <span className="cite-chip__meta">
-                              {citation.gameName}
+                              {citation.documentTitle}
                               {page ? ` · ${page}` : ""}
                             </span>
                           </button>
