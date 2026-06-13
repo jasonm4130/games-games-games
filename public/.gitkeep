@@ -1,0 +1,1 @@
+# Static assets served as-is (favicon, robots.txt, etc.). The built SPA is added by the Vite plugin at build time.

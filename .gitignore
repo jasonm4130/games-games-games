@@ -1,0 +1,26 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+.wrangler/
+.mf/
+
+# local secrets / env
+.dev.vars
+.dev.vars.*
+.env
+.env.*
+*.local
+
+# terraform — commit .terraform.lock.hcl, ignore state and the provider cache
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/*.tfvars
+!terraform/*.tfvars.example
+crash.log
+
+# misc
+.DS_Store
+*.log

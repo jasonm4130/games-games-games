@@ -1,0 +1,10 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored.
+# Prefer passing the API token via the environment instead of this file:
+#   export TF_VAR_cloudflare_api_token="<account-scoped token>"
+
+account_id = "your-cloudflare-account-id"
+
+# Optional overrides (defaults shown):
+# r2_bucket_name   = "ggg-rulebooks"
+# d1_database_name = "ggg-db"
+# r2_location      = "WEUR"

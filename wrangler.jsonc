@@ -1,0 +1,46 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "games-games-games",
+  "main": "src/server/index.ts",
+  "compatibility_date": "2026-06-13",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+
+  // The built React SPA is served as static assets. Requests to /agents/* (the
+  // RulesAgent) and /api/* (ingest/upload) hit the Worker first; everything else
+  // falls through to the SPA (client-side routing via single-page-application).
+  "assets": {
+    "directory": "./public",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/agents/*", "/api/*"]
+  },
+
+  // Workers AI — no local simulation, so route to the network even in dev.
+  "ai": { "binding": "AI", "remote": true },
+
+  // The chat agent is a Durable Object. Agents SDK requires new_sqlite_classes
+  // (NOT new_classes) for SQLite-backed state. See docs/adr/0001.
+  "durable_objects": {
+    "bindings": [{ "name": "RulesAgent", "class_name": "RulesAgent" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RulesAgent"] }],
+
+  // Rulebook PDFs. Bucket is created by Terraform (docs/adr/0003).
+  "r2_buckets": [{ "binding": "RULEBOOKS", "bucket_name": "ggg-rulebooks" }],
+
+  // Embeddings. Index created by `wrangler vectorize create` (no Terraform
+  // resource exists). Dims/metric are immutable: bge-m3, 1024, cosine — ADR 0002.
+  // No local simulation, so remote: true for dev.
+  "vectorize": [{ "binding": "RULES_IDX", "index_name": "ggg-rules-index", "remote": true }],
+
+  // Metadata. Database is created by Terraform; paste its id below after
+  // `terraform apply` (or run scripts/provision.sh). Schema lives in migrations/.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ggg-db",
+      "database_id": "REPLACE_WITH_TERRAFORM_OUTPUT",
+      "migrations_dir": "migrations"
+    }
+  ]
+}
