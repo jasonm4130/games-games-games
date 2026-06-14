@@ -5,13 +5,13 @@ import {
   createUIMessageStream,
   createUIMessageStreamResponse,
   streamText,
-  type UIMessage,
 } from "ai";
 import { sql } from "drizzle-orm";
 import { createWorkersAI } from "workers-ai-provider";
 import type { Citation, RulesAgentState, RulesUIMessage } from "../shared/types";
 import { db } from "./db";
 import { dailyUsage, games } from "./db/schema";
+import { formatGrounding, userTexts } from "./rag/context";
 import { GENERATION_MODEL } from "./rag/models";
 import { retrieve } from "./rag/retrieve";
 
@@ -32,22 +32,9 @@ Voice: direct, authoritative, lightly flavoured with possessive-goblin pride. At
 
 Hard rules:
 - Ground every answer in the retrieved passages below and cite them inline as [1], [2], … using only the numbers of the passages provided, in order.
+- Each passage is labelled with its source document — the base game or a named expansion. Default to the base-game rules. Apply an expansion's rule only when the player names that expansion, or when the base game does not address the question — and when a ruling comes from an expansion, name it.
 - Never invent a rule. Read the player's wording loosely: if a passage covers the same concept under a different name (e.g. "prison" for "jail", "turn order" for "who goes first"), answer from it. Only when no passage addresses the question at all, say so decisively and in character — "That is not in my rulebook." — then stop. Never guess, extrapolate, or suggest house rules.
 - If two passages genuinely conflict, cite both and say which controls and why the text supports it. Acknowledge real ambiguity; never manufacture certainty, and never hedge when the text is clear.`;
-
-/** Concatenate the text parts of the most recent user message. */
-function lastUserText(messages: UIMessage[]): string {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i];
-    if (message.role !== "user") continue;
-    const text = message.parts
-      .flatMap((part) => (part.type === "text" ? [part.text] : []))
-      .join(" ")
-      .trim();
-    if (text) return text;
-  }
-  return "";
-}
 
 export class RulesAgent extends AIChatAgent<Env, RulesAgentState> {
   maxPersistedMessages = 100;
@@ -127,9 +114,19 @@ export class RulesAgent extends AIChatAgent<Env, RulesAgentState> {
     const workersai = createWorkersAI({ binding: this.env.AI });
     const messages = await convertToModelMessages(this.messages);
 
-    const passages = await retrieve(this.env, lastUserText(this.messages), {
-      gameId: this.state.activeGameId,
-    });
+    // Retrieve against the latest question. A terse follow-up ("what about 4 players?") embeds
+    // poorly on its own and would fall through to the out-of-scope refusal below even though the
+    // conversation is on-topic — so when the latest message alone finds nothing, retry with the
+    // prior user turn folded in to bring the established subject back into scope.
+    const texts = userTexts(this.messages);
+    const latest = texts.at(-1) ?? "";
+    const prior = texts.at(-2);
+    let passages = await retrieve(this.env, latest, { gameId: this.state.activeGameId });
+    if (passages.length === 0 && prior) {
+      passages = await retrieve(this.env, `${prior}\n${latest}`, {
+        gameId: this.state.activeGameId,
+      });
+    }
 
     // (2) Out-of-scope short-circuit — nothing cleared the grounding floor, so answer in
     // character with no model call (and without spending a slot of the daily budget).
@@ -152,10 +149,10 @@ export class RulesAgent extends AIChatAgent<Env, RulesAgentState> {
       return this.staticReply(NAPPING);
     }
 
-    const grounding =
-      passages.length > 0
-        ? passages.map((p, i) => `[${i + 1}] ${p.chunk.text}`).join("\n\n")
-        : "No relevant rulebook passages were found for this question.";
+    // Passages are non-empty here (the out-of-scope path returned above). Label each with its
+    // source document so the goblin can tell base from expansion, and name the active Game.
+    const grounding = formatGrounding(passages);
+    const gameName = passages[0]?.gameName ?? "this game";
 
     const citations: Citation[] = passages.map((p) => ({
       chunkId: p.chunk.id,
@@ -171,7 +168,7 @@ export class RulesAgent extends AIChatAgent<Env, RulesAgentState> {
 
     const result = streamText({
       model: workersai(GENERATION_MODEL),
-      system: `${SYSTEM_PROMPT}\n\nRetrieved rulebook passages:\n${grounding}`,
+      system: `${SYSTEM_PROMPT}\n\nYou are answering for ${gameName}.\n\nRetrieved rulebook passages:\n${grounding}`,
       messages,
       maxOutputTokens: MAX_OUTPUT_TOKENS,
       abortSignal: options?.abortSignal,

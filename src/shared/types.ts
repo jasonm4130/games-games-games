@@ -78,6 +78,8 @@ export interface RetrievedChunk {
   gameName: string;
   /** Title of the source Rulebook (Document) — disambiguates which book within a Game. */
   documentTitle: string;
+  /** base | expansion | errata — lets the grounding tell the model which book a passage is from. */
+  documentKind: DocumentKind;
   score: number;
 }
 

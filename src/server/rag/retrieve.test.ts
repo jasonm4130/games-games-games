@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { DocumentKind } from "../../shared/types";
 import { RERANK_MIN_SCORE, RERANK_MODEL, RETRIEVAL_MIN_SCORE } from "./models";
 
 // Drizzle row shape after the hydration JOIN (camelCase, as selected in retrieve.ts).
@@ -11,6 +12,7 @@ interface HydratedRow {
   pageEnd: number | null;
   gameName: string;
   documentTitle: string;
+  documentKind: DocumentKind;
 }
 
 // Rows the mocked Drizzle query resolves to; each test sets `hoisted.rows` via build().
@@ -41,6 +43,7 @@ function row(id: string, overrides: Partial<HydratedRow> = {}): HydratedRow {
     pageEnd: 1,
     gameName: "Catan",
     documentTitle: "Base Game",
+    documentKind: "base",
     ...overrides,
   };
 }
@@ -135,6 +138,21 @@ describe("retrieve", () => {
       gameName: "Catan",
       score: 0.9,
     });
+  });
+
+  it("carries each chunk's document kind through for grounding labels", async () => {
+    const { env } = build({
+      matches: [
+        { id: "c1", score: 0.9 },
+        { id: "c2", score: 0.8 },
+      ],
+      rows: [
+        row("c1", { documentTitle: "Base Game", documentKind: "base" }),
+        row("c2", { documentTitle: "The Herb Witches", documentKind: "expansion" }),
+      ],
+    });
+    const out = await retrieve(env, "q", { gameId: "g1" });
+    expect(out.map((r) => r.documentKind)).toEqual(["base", "expansion"]);
   });
 
   it("skips a match that has no D1 row", async () => {
