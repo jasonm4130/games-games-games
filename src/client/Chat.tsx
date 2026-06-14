@@ -18,6 +18,9 @@ interface Props {
   onNewConversation: () => void;
   onBack: () => void;
   onOpenCitation: (citation: Citation, n: number) => void;
+  onToggleSpeak: (id: string, text: string) => void;
+  speakingId: string | null;
+  loadingId: string | null;
 }
 
 /** The per-Game chat — the goblin tending one rulebook, themed to that Game's accent. */
@@ -30,6 +33,9 @@ export function Chat({
   onNewConversation,
   onBack,
   onOpenCitation,
+  onToggleSpeak,
+  speakingId,
+  loadingId,
 }: Props) {
   const [input, setInput] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
@@ -86,6 +92,19 @@ export function Chat({
                 {isGoblin ? <GoblinMark className="turn__avatar" /> : null}
                 <div className="turn__bubble">
                   {isGoblin ? <span className="turn__stamp">Ruling</span> : null}
+                  {isGoblin ? (
+                    <button
+                      type="button"
+                      className="turn__speak"
+                      onClick={() => onToggleSpeak(message.id, textOf(message))}
+                      disabled={isStreaming}
+                      aria-label={
+                        speakingId === message.id ? "Stop reading" : "Read this ruling aloud"
+                      }
+                    >
+                      {speakingId === message.id ? "⏹" : loadingId === message.id ? "…" : "🔊"}
+                    </button>
+                  ) : null}
                   <div className="turn__body">{textOf(message)}</div>
                   {cites.length > 0 ? (
                     <div className="cite-row">
