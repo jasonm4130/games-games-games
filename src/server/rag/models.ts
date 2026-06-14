@@ -50,18 +50,29 @@ export const TABLE_MAX_TOKENS = 1500;
 export const RETRIEVAL_MIN_SCORE = 0.15;
 
 /**
- * In-scope gate on the cross-encoder relevance score (sigmoid-normalised to [0,1] by Workers AI).
+ * NOISE floor on the cross-encoder relevance score (sigmoid-normalised to [0,1] by Workers AI).
  * After reranking, passages below this are dropped; if none clear it, Retrieval returns [] and the
- * agent gives its "not covered" reply. THIS, not the cosine floor, decides whether the rulebook
- * answers the question.
+ * agent gives its canned "not covered" reply (no model call). This floor is NOT the relevance judge
+ * — the LLM is (see prompt.ts "WHEN THE PASSAGES FALL SHORT"). Its only job is to keep obvious
+ * garbage from reaching the model, while letting the genuinely-but-weakly-relevant through.
  *
- * Calibrated 2026-06-14 against the live Monopoly index with the synonym query "how do I get out of
- * prison": the Jail passage reranked to 0.841, every other candidate to <= 0.0004 - a clean gap.
- * 0.2 sits deep inside it, keeping strong + secondary matches while rejecting noise. (This query
- * previously hit the canned refusal: the old 0.55 cosine floor sat right on the Jail chunk's 0.555
- * score and the reranker was never used as a gate.)
+ * Why low (re-calibrated 2026-06-14, was 0.2). The reranker is a good RANKER but an unreliable
+ * ABSOLUTE judge, so no single cutoff separates in-scope from out-of-scope. Probed live on Monopoly:
+ *   - genuine matches for awkward paraphrases score as LOW as ~0.10 ("how much money does each
+ *     player start with" -> 0.110 rank #1; "how can a player escape jail" -> 0.102 rank #1), yet
+ *   - genuinely-irrelevant chunks score as HIGH as ~0.99 (a Texas-Hold'em-poker question reranks a
+ *     Monopoly chunk to 0.996; "how do I castle in chess" -> 0.456).
+ * The old 0.2 cutoff dropped the 0.10–0.11 genuine matches (canned-refusing equivalent paraphrases
+ * that should ground) while the 0.46/0.99 garbage sailed past it to the model anyway. So the cutoff
+ * was doing the wrong job. We now set it to a NOISE floor of 0.05, which sits in the measured gap
+ * between clear garbage (<= ~0.025: "capital of France" 0.0006, "best opening move in Go" 0.0225)
+ * and genuine-weak matches (>= ~0.10). Verified end-to-end (real reranker + prompt + Llama 3.3 70B):
+ * the awkward paraphrases now ground correctly, and out-of-scope/injection questions — including the
+ * 0.46/0.99 cases that reach the model — still get the in-character "not in my rulebook" refusal.
+ * Cross-game gold calibration: 39/40 genuine matches rerank >= 0.05 (identical to >= 0.2; natural
+ * phrasings rerank ~0.99), so lowering costs no precision on well-phrased questions.
  */
-export const RERANK_MIN_SCORE = 0.2;
+export const RERANK_MIN_SCORE = 0.05;
 
 export const RETRIEVAL_TOP_K = 5;
 /** Over-fetch count: how many Vectorize candidates to pull before the reranker narrows to RETRIEVAL_TOP_K. */
