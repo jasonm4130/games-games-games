@@ -44,6 +44,7 @@ describe("POST /api/tts", () => {
     const call = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(String(call[0])).toContain("wXvR48IpOq9HACltTmt7");
     expect(call[1].headers).toMatchObject({ "xi-api-key": "test-key" });
+    expect(JSON.parse(call[1].body as string)).toMatchObject({ text: "hello" });
   });
 
   it("rejects missing text with 400", async () => {

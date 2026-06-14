@@ -97,7 +97,7 @@ export function Chat({
                       type="button"
                       className="turn__speak"
                       onClick={() => onToggleSpeak(message.id, textOf(message))}
-                      disabled={isStreaming}
+                      disabled={isStreaming || (loadingId !== null && loadingId !== message.id)}
                       aria-label={
                         speakingId === message.id ? "Stop reading" : "Read this ruling aloud"
                       }

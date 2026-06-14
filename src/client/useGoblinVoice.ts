@@ -15,6 +15,8 @@ export interface GoblinVoice {
 export function useGoblinVoice(): GoblinVoice {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const urlRef = useRef<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const genRef = useRef(0); // bumped on every stop()/toggle; stale in-flight requests no-op
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
@@ -31,6 +33,9 @@ export function useGoblinVoice(): GoblinVoice {
   }, []);
 
   const stop = useCallback(() => {
+    genRef.current += 1; // invalidate any in-flight /api/tts request
+    abortRef.current?.abort();
+    abortRef.current = null;
     teardown();
     setSpeakingId(null);
     setLoadingId(null);
@@ -42,28 +47,44 @@ export function useGoblinVoice(): GoblinVoice {
         stop();
         return;
       }
-      stop();
+      stop(); // tear down current playback and bump the generation
       const clean = text.replace(/\[\d+\]/g, "").trim(); // drop inline [1][2] citation markers
       if (!clean) return;
+
+      const gen = genRef.current; // this request's generation; a newer stop()/toggle supersedes it
+      const controller = new AbortController();
+      abortRef.current = controller;
       setLoadingId(id);
+
       fetch("/api/tts", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ text: clean }),
+        signal: controller.signal,
       })
         .then(async (res) => {
           if (!res.ok) throw new Error(`tts ${res.status}`);
-          const url = URL.createObjectURL(await res.blob());
-          urlRef.current = url;
+          const blob = await res.blob();
+          if (gen !== genRef.current) return; // superseded while fetching — drop it
+          const url = URL.createObjectURL(blob);
           const audio = new Audio(url);
-          audioRef.current = audio;
           audio.onended = stop;
           audio.onerror = stop;
+          urlRef.current = url;
+          audioRef.current = audio;
           await audio.play();
+          if (gen !== genRef.current) {
+            // superseded during the play() gap — clean up our own resources, touch no shared state
+            audio.pause();
+            URL.revokeObjectURL(url);
+            return;
+          }
           setLoadingId(null);
           setSpeakingId(id);
         })
-        .catch(stop);
+        .catch(() => {
+          if (gen === genRef.current) stop(); // ignore aborts/errors from superseded requests
+        });
     },
     [speakingId, loadingId, stop],
   );
