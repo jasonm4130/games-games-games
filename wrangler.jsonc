@@ -58,8 +58,11 @@
   // daily_usage breaker in the agent). namespace_id is an arbitrary integer we own.
   //   IP_LIMITER  — connection attempts per client IP on /agents/* (index.ts).
   //   MSG_LIMITER — chat messages per session (keyed by the agent instance name, agent.ts).
+  //   TTS_LIMITER — /api/tts calls per client IP (index.ts); tighter, since each spends real
+  //                 ElevenLabs credits.
   "ratelimits": [
     { "name": "IP_LIMITER", "namespace_id": "1001", "simple": { "limit": 30, "period": 60 } },
-    { "name": "MSG_LIMITER", "namespace_id": "1002", "simple": { "limit": 15, "period": 60 } }
+    { "name": "MSG_LIMITER", "namespace_id": "1002", "simple": { "limit": 15, "period": 60 } },
+    { "name": "TTS_LIMITER", "namespace_id": "1003", "simple": { "limit": 10, "period": 60 } }
   ]
 }

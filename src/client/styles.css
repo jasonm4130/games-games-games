@@ -424,6 +424,39 @@ body::before {
   padding: 1px 7px;
 }
 
+.turn__speak {
+  position: absolute;
+  top: -11px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 22px;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--paper);
+  background: var(--felt, #15301f);
+  border: 2px solid var(--game-accent);
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
+}
+
+.turn__speak:hover,
+.turn__speak:focus-visible {
+  background: var(--game-accent);
+  color: var(--ink);
+  outline: none;
+}
+
+.turn__speak:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .turn__body {
   font-size: 16px;
   line-height: 1.55;

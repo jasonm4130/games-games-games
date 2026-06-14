@@ -6,6 +6,7 @@ import type { Citation, RulesAgentState, RulesUIMessage } from "../shared/types"
 import { Catalogue } from "./Catalogue";
 import { Chat } from "./Chat";
 import { CitationModal } from "./CitationModal";
+import { useGoblinVoice } from "./useGoblinVoice";
 
 interface Game {
   id: string;
@@ -47,6 +48,8 @@ export default function App() {
     RulesUIMessage
   >({ agent });
 
+  const voice = useGoblinVoice();
+
   const activeGameId = agent.state?.activeGameId;
   const isStreaming = status === "streaming" || status === "submitted";
 
@@ -87,11 +90,23 @@ export default function App() {
           game={selectedGame}
           messages={messages}
           isStreaming={isStreaming}
-          onSend={(text) => sendMessage({ role: "user", parts: [{ type: "text", text }] })}
+          onSend={(text) => {
+            voice.stop();
+            sendMessage({ role: "user", parts: [{ type: "text", text }] });
+          }}
           onStop={() => stop()}
-          onNewConversation={() => clearHistory()}
-          onBack={() => setView("catalogue")}
+          onNewConversation={() => {
+            voice.stop();
+            clearHistory();
+          }}
+          onBack={() => {
+            voice.stop();
+            setView("catalogue");
+          }}
           onOpenCitation={(citation, n) => setActiveCite({ citation, n })}
+          onToggleSpeak={voice.toggle}
+          speakingId={voice.speakingId}
+          loadingId={voice.loadingId}
         />
       ) : (
         <Catalogue games={games} ready={loaded} onPick={enterGame} />

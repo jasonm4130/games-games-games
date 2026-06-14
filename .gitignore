@@ -9,6 +9,7 @@ dist/
 # local secrets / env
 .dev.vars
 .dev.vars.*
+!.dev.vars.tpl
 .env
 .env.*
 *.local
