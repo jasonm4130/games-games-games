@@ -18,3 +18,8 @@ dist/
 .DS_Store
 *.log
 .playwright-mcp/
+
+# Operator-side rulebook conversion (copyrighted markdown stays out of the public repo)
+rulebooks/
+.venv/
+scripts/.validate-cache/
