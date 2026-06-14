@@ -1,0 +1,14 @@
+[project]
+name = "ggg-rulebook-tools"
+version = "0.0.0"
+description = "Offline operator tooling: PDF -> healed markdown (not shipped to the Worker)"
+requires-python = ">=3.11"
+dependencies = [
+  "docling>=2.102.1",
+  "unstructured>=0.23.1",
+]
+
+[project.optional-dependencies]
+# Marker is the escalation converter (vision-LLM via --use_llm); heavy + GPL, install on demand:
+#   uv pip install -e ".[escalation]"
+escalation = ["marker-pdf>=1.10.2"]
