@@ -6,11 +6,18 @@
 # CSP is scoped to exactly what the app loads: same-origin hashed JS/CSS bundles; Google Fonts
 # (stylesheet from fonts.googleapis.com, font files from fonts.gstatic.com — see index.html);
 # data: URIs for the inline SVG noise background (styles.css); blob: audio for the goblin TTS
-# playback (useGoblinVoice.ts → new Audio(blobUrl)); and same-origin connect for the API + the
-# /agents/* WebSocket ('self' covers same-origin wss).
+# playback (useGoblinVoice.ts → new Audio(blobUrl)); same-origin connect for the API + the
+# /agents/* WebSocket ('self' covers same-origin wss); and Cloudflare Web Analytics (the external
+# static.cloudflareinsights.com beacon + its cloudflareinsights.com data POST).
+#
+# script-src is deliberately strict (no 'unsafe-inline'): the app ships no first-party inline
+# scripts. Cloudflare "JS Detections" injects a per-request inline bootstrap (unhashable) that this
+# CSP blocks BY DESIGN — that feature is disabled at the zone (Security → Settings) so it isn't
+# injected. If you re-enable JS Detections you must either add 'unsafe-inline' here or accept the
+# console block.
 /*
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(), camera=(), microphone=()
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' https://cloudflareinsights.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'
