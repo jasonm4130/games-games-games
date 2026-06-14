@@ -25,10 +25,20 @@ R2_BUCKET = "ggg-rulebooks"
 
 
 def convert_docling(pdf: Path) -> str:
-    from docling.document_converter import DocumentConverter
+    from docling.datamodel.base_models import InputFormat
+    from docling.datamodel.pipeline_options import PdfPipelineOptions
+    from docling.document_converter import DocumentConverter, PdfFormatOption
 
-    result = DocumentConverter().convert(str(pdf))
-    return result.document.export_to_markdown()
+    # Our rulebooks are born-digital PDFs with a real text layer (the problem we heal is mangled
+    # extraction, NOT a missing layer). Docling defaults do_ocr=True, which runs RapidOCR on every
+    # page, returns empty results, and adds minutes per file for zero gain. Disable it; keep table
+    # structure on (rulebooks have tables). Escalate to --engine marker for any truly scanned file.
+    opts = PdfPipelineOptions()
+    opts.do_ocr = False
+    converter = DocumentConverter(
+        format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=opts)}
+    )
+    return converter.convert(str(pdf)).document.export_to_markdown()
 
 
 def convert_marker(pdf: Path) -> str:
