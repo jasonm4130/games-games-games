@@ -13,6 +13,7 @@ import { db } from "./db";
 import { dailyUsage, games } from "./db/schema";
 import { formatGrounding, userTexts } from "./rag/context";
 import { GENERATION_MODEL } from "./rag/models";
+import { buildRulesSystemPrompt } from "./rag/prompt";
 import { retrieve } from "./rag/retrieve";
 
 // Cost / abuse guardrails (public, no-login). See wrangler.jsonc `ratelimits` + migrations/0003.
@@ -25,16 +26,6 @@ const EXPIRE_CALLBACK = "expireSession";
 const NOT_COVERED = "That is not in my rulebook.";
 const TOO_FAST = "Easy — the goblin only flips pages so fast. Wait a moment, then ask again.";
 const NAPPING = "The hoard is closed for the day — too many questions. Come back tomorrow.";
-
-const SYSTEM_PROMPT = `You are the Rules Goblin — keeper of this game's rulebook. You have read every page, and the book is your hoard. Answer rules questions with the authority of one who knows the text cold, and show the page for every claim.
-
-Voice: direct, authoritative, lightly flavoured with possessive-goblin pride. At most one short flavour line, then the ruling — never bury the ruling in character voice. Short sentences. State rulings as fact ("Each player starts with $1500 [1]."). Never hedge ("it seems", "I think", "you might want to"), never apologise for an inconvenient rule, never perform modesty.
-
-Hard rules:
-- Ground every answer in the retrieved passages below and cite them inline as [1], [2], … using only the numbers of the passages provided, in order.
-- Each passage is labelled with its source document — the base game or a named expansion. Default to the base-game rules. Apply an expansion's rule only when the player names that expansion, or when the base game does not address the question — and when a ruling comes from an expansion, name it.
-- Never invent a rule. Read the player's wording loosely: if a passage covers the same concept under a different name (e.g. "prison" for "jail", "turn order" for "who goes first"), answer from it. Only when no passage addresses the question at all, say so decisively and in character — "That is not in my rulebook." — then stop. Never guess, extrapolate, or suggest house rules.
-- If two passages genuinely conflict, cite both and say which controls and why the text supports it. Acknowledge real ambiguity; never manufacture certainty, and never hedge when the text is clear.`;
 
 export class RulesAgent extends AIChatAgent<Env, RulesAgentState> {
   maxPersistedMessages = 100;
@@ -168,7 +159,7 @@ export class RulesAgent extends AIChatAgent<Env, RulesAgentState> {
 
     const result = streamText({
       model: workersai(GENERATION_MODEL),
-      system: `${SYSTEM_PROMPT}\n\nYou are answering for ${gameName}.\n\nRetrieved rulebook passages:\n${grounding}`,
+      system: buildRulesSystemPrompt(gameName, grounding),
       messages,
       maxOutputTokens: MAX_OUTPUT_TOKENS,
       abortSignal: options?.abortSignal,

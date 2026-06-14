@@ -4,6 +4,7 @@ import { agentsMiddleware } from "hono-agents";
 import { createWorkersAI } from "workers-ai-provider";
 import { formatGrounding } from "./rag/context";
 import { GENERATION_MODEL } from "./rag/models";
+import { buildRulesSystemPrompt } from "./rag/prompt";
 import { retrieve, retrieveCandidates } from "./rag/retrieve";
 import { synthesizeSpeech, TTS_MAX_CHARS } from "./tts";
 
@@ -102,9 +103,11 @@ app.post("/api/eval/answer", async (c) => {
   const grounding = formatGrounding(passages);
   const gameName = passages[0]?.gameName ?? "this game";
   const workersai = createWorkersAI({ binding: c.env.AI });
+  // Use the SAME system prompt the live agent uses so the eval measures the real goblin (and the
+  // injection-eval exercises the real hardening), not a drifted one-shot copy.
   const { text } = await generateText({
     model: workersai(model),
-    system: `Answer the rules question for ${gameName} using ONLY the passages below, citing them inline as [1], [2], … by their numbers. If no passage answers, say so.\n\nRetrieved rulebook passages:\n${grounding}`,
+    system: buildRulesSystemPrompt(gameName, grounding),
     prompt: query,
     maxOutputTokens: 600,
   });
