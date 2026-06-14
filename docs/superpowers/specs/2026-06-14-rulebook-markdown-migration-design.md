@@ -39,8 +39,10 @@ for here.
   diffs" recommendation: reviewability comes from the committed *validation reports* and local diffs,
   not public git history.
 - **Vectorize dims are immutable** (`@cf/baai/bge-m3`, 1024, cosine — ADR 0002). Re-embedding the
-  whole corpus = a full re-ingest. We do it **blue/green** against a parallel index and gate on the
-  Gold set before cutover.
+  whole corpus = a full re-ingest, gated on a regenerated Gold set. Because retrieval joins Vectorize
+  ids to D1 rows and re-ingest changes ids, a Vectorize-only blue/green over the **shared D1** is
+  invalid — the default is a maintenance-window single-index re-ingest (true blue/green needs a
+  parallel D1 too; see the re-ingest section).
 - **Ingestion is already operator-side** (ADR 0005). Adding an offline Python conversion step fits
   that model; the Worker hot path never touches a PDF or a converter — it only ever queries the
   index.
@@ -79,17 +81,33 @@ healed .md ─ [4] ingest.ts (Node, modified) ─ extractMarkdown + markdown-awa
 
 ### [1] Convert — `scripts/convert-pdfs.py` (Python, new)
 
-- **Marker** primary (offline Python CLI; clean PDFs like Monopoly, Sushi Go!).
-- **Marker `--use_llm`** for graphically-designed hard cases (Catan T&B) — the "vision-LLM converter"
-  the healing research wanted: prevents artifacts at extraction rather than repairing them. **MinerU
-  2.5 / Zerox** are drop-in alternatives if Marker's LLM mode underperforms on a file.
-- **Docling** as fallback when Marker chokes on a specific PDF.
-- Then a deterministic clean pass on the raw markdown: `unstructured.io` cleaning bricks
-  (`replace_unicode_quotes`, `clean_extra_whitespace`, ligature/control-char strip) + **NFKC**
-  normalization. This removes most artifacts at zero LLM cost.
+**Verification flipped the converter default to Docling.** Current (June 2026) benchmarks plus this
+project's environment — Apple Silicon Mac, **no GPU**, public/personal repo — favour Docling over
+Marker as the baseline:
+
+- **Docling** (IBM → Linux Foundation; **MIT**; v2.102.1) is the **primary** converter: ~0.3–3 s/page
+  on CPU vs Marker's 5–53 s/page (no GPU here), higher table accuracy (TEDS 0.887 vs 0.808) and
+  overall (0.882 vs 0.861), **no API key**, emits a typed `DoclingDocument` with clean semantic
+  hierarchy. `pip install docling`;
+  `DocumentConverter().convert(pdf).document.export_to_markdown()`.
+- **Marker `--use_llm`** (`marker-pdf` v1.10.2) is the **per-file escalation** for files Docling
+  mangles — the graphically-designed hard cases (Catan T&B). `--use_llm` is a **cloud vision-LLM
+  call** (default `gemini-2.0-flash`, env `GOOGLE_API_KEY`; can target Claude/OpenAI/Ollama). It is
+  the practical vision escalation here *because* it offloads to the cloud — **MinerU 3.x** (corrected:
+  there is no "2.5"; current is 3.x with a local 1.2B VLM) wants a local GPU, and **Zerox** is
+  effectively unmaintained (last release Dec 2024). Marker's model weights are Open-Rail-M (commercial
+  self-hosting needs a paid Datalab licence — fine for this personal project; noted).
+- **Deterministic clean pass** on the raw markdown, in order:
+  1. `unicodedata.normalize("NFKC", text)` — folds ligatures/compatibility characters.
+  2. `unstructured.cleaners.core` bricks: `replace_unicode_quotes`, `clean_ligatures` (covers æ/œ that
+     NFKC misses), `clean_extra_whitespace`, `group_broken_paragraphs`.
+  3. **A dedicated spaced-letter regex.** NFKC does **not** fix `K L A U S T E U B E R` — that is real
+     `U+0020` spacing, not a compatibility character (verified). A targeted pass (collapse runs of
+     single-spaced capitals) is required; this artifact class is the single biggest source of Catan's
+     994 garbage "headers".
 - Output: raw `.md` to a gitignored local `rulebooks/<game>/<doc>.md` and uploaded to R2.
-- **Toolchain note:** adds a Python dependency for the operator (managed via `uv`/`pip`; documented
-  in the plan). Acceptable for an offline operator step (ADR 0005 already establishes operator-side
+- **Toolchain note:** adds a Python dependency for the operator (managed via `uv`/`pip`; documented in
+  the plan). Acceptable for an offline operator step (ADR 0005 already establishes operator-side
   tooling); the Node hot path is unaffected.
 
 ### [2] Heal — `scripts/heal.ts` (Node, new)
@@ -147,25 +165,34 @@ that replaces public git diffs of the (copyrighted) markdown.
 
 - Add `heading_path TEXT` to `chunks` (**migration 0006** + the hand-synced `src/server/db/schema.ts`
   mirror). Today `chunk.ts` computes `headingPath` but `ingest.ts`'s INSERT drops it — we now store
-  it.
+  it. **Verified trigger-safe:** the migration-0004 FTS5 triggers touch only `text`/`id` and the
+  update trigger is `AFTER UPDATE OF text`, so a new column doesn't break them. Keep `heading_path`
+  **out** of the `chunks_fts` BM25 index — short structural labels pollute IDF and add no lexical
+  value; its value is LLM grounding + the citation label (dense/display only).
 - Plumb it through `retrieve.ts` → the `Citation` type (`src/shared/types.ts`) → `theme.ts`. For
   markdown sources, `page_start`/`page_end` are null and the citation label renders the section
   heading (e.g. *"§ Getting Out of Jail"*) instead of `p.N`. Keep the page columns for back-compat
   with any PDF-sourced rows.
 
-## Re-ingest: blue/green + Gold-set regeneration
+## Re-ingest: maintenance-window (default) or true blue/green, + Gold-set regeneration
 
-- Stand up a **parallel Vectorize index** (the "blue" index) via the central infra repo
-  (`../jasonm4130-cf`, ADR 0003 — magodo/restful stopgap), same dims/metric. Re-ingest **all affected
-  games in one pass** (your earlier decision) into blue.
-- **Gate on the Gold set before cutover**: re-ingest changes every chunk id, so the existing
+A parallel *Vectorize* index alone is **not** valid blue/green here: retrieval hydrates chunk text
+from D1 by joining on the vector id, and re-ingest assigns new chunk ids — a parallel index over the
+**shared D1** would orphan the live index's ids and zero live hydration during the window. So:
+
+- **Default — maintenance-window, single index:** deploy the (backward-compatible) new Worker, then
+  re-ingest **all affected games in one pass** (your earlier decision) in place at a quiet time. The
+  only degraded window is the re-ingest run; afterwards D1 + the index are consistent again. Fine for
+  a personal, low-traffic app.
+- **Optional — true blue/green:** provision a parallel D1 *and* Vectorize index, re-ingest into both,
+  eval via local `pnpm dev` pointed at the blue bindings, then cut over both bindings atomically. Zero
+  downtime; needs `--vectorize-index`/`--d1-database` overrides on `ingest.ts` + a second D1 in the
+  central repo.
+- **Gate on the Gold set**: re-ingest changes every chunk id, so the existing
   `eval/gold/catalogue.json` `expectedChunkIds` go stale. Regenerate via `pnpm gen-gold` per game +
-  operator curation (the propose-then-curate flow in `gen-gold.ts`), then run `pnpm eval` against
-  blue and require Hit-Rate@5 / Recall@20 at least as good as the current green index.
-- **Cut over** by switching the Worker's Vectorize binding to blue, then retire green.
-- The **prod-mutating steps** (central-repo `make apply` for the blue index, remote D1 migration,
-  Vectorize writes, binding cutover, deploy) are performed by the human — workflows/scripts prepare
-  but do not apply them.
+  operator curation, then `pnpm eval` and require Hit-Rate@5 / Recall@20 ≥ the current baseline.
+- The **prod-mutating steps** (any central-repo `make apply`, remote D1 migration, Vectorize writes,
+  deploy) are performed by the human — workflows/scripts prepare but do not apply them.
 
 ## Ship the held work on the clean foundation
 
@@ -199,14 +226,14 @@ copyright constraint, the Marker/heal/validate trade-off, and the Python-toolcha
 
 ## Success criteria
 
-- **Root cause fixed (acceptance):** on the blue index, the Monopoly starting-money and escape-Jail
-  paraphrases (the staged Gold regression rows) return real rulings, not `NOT_COVERED`; the `$1500`
-  fact sits in its own heading-scoped chunk and reranks well above the 0.05 floor. Verified live
-  during `pnpm dev` against blue (Workers AI always hits the network — integration check, not unit).
+- **Root cause fixed (acceptance):** on the re-ingested index, the Monopoly starting-money and
+  escape-Jail paraphrases (the staged Gold regression rows) return real rulings, not `NOT_COVERED`;
+  the `$1500` fact sits in its own heading-scoped chunk and reranks well above the 0.05 floor.
+  Verified live during `pnpm dev` (Workers AI always hits the network — integration check, not unit).
 - **No fabrication:** `validate-md.ts` passes for every converted rulebook — zero missing numbers,
   similarity above threshold, LLM-judge faithfulness clean. Catan T&B (the hardest) passes first.
-- **No regression elsewhere:** `pnpm eval` on blue ≥ green on Hit-Rate@5 and Recall@20 across the
-  Catalogue before cutover.
+- **No regression elsewhere:** `pnpm eval` after re-ingest ≥ the recorded baseline on Hit-Rate@5 and
+  Recall@20 across the Catalogue before announcing (blue/green path: before cutover).
 - **Refusal still works:** a genuinely off-topic question still returns `NOT_COVERED`.
 - **Unit tests:** `chunk.test.ts` covers markdown-heading segmentation and boundary-respecting merge.
 - `pnpm check`, `pnpm test`, `pnpm build` green.
@@ -218,16 +245,18 @@ copyright constraint, the Marker/heal/validate trade-off, and the Python-toolcha
    trivial. Do not build out the rollout before this spike passes.
 2. Build the markdown-aware chunker + `heading_path` plumbing (unit-tested, no prod mutation).
 3. Convert + heal + validate the rest of the Catalogue (all affected games, one pass).
-4. Blue/green re-ingest; regenerate + curate Gold; eval-gate; **human** cuts over.
+4. Re-ingest (maintenance-window default; blue/green optional); regenerate + curate Gold; eval-gate;
+   **human** deploys/cuts over.
 5. Ship the 0.05 gate fix + Uno on the clean index.
 
 - **Risk — LLM heal hallucination:** mitigated by temp-0 + "only fix" prompt + character-alignment
   trimming + the deterministic number-preservation gate. A section that fails validation keeps its
   raw text.
-- **Risk — converter cost/quality on hard PDFs:** Marker `--use_llm` (and MinerU/Zerox fallbacks)
-  spend LLM credits on Catan-class files; bounded by being a one-time offline step on a small
-  Catalogue.
-- **Risk — Gold churn:** every chunk id changes; the blue/green gate forces a regenerated, curated
-  Gold set before cutover rather than trusting stale ids.
+- **Risk — converter quality/cost on hard PDFs:** Docling (primary) is free + local; only the
+  per-file Marker `--use_llm` escalation spends cloud LLM credits on Catan-class files, bounded by
+  being a one-time offline step on a small Catalogue. Escalation is gated by validation failure, not
+  applied blanket.
+- **Risk — Gold churn:** every chunk id changes; the eval gate forces a regenerated, curated Gold set
+  before announcing/cutover rather than trusting stale ids.
 - **Risk — Python toolchain:** new operator dependency; isolated to the conversion stage, documented
   in the plan, never on the Worker path.
