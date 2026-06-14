@@ -316,5 +316,20 @@
       "In a 2 player game, no one loses any points for puddings",
       "Only the points for most pudding cards are awarded"
     ]
+  },
+  {
+    "game": "Monopoly",
+    "query": "How much money does each player start with?",
+    "expectedChunkIds": ["2619a270-4d4a-4cdd-8678-d1feee0bff7c"],
+    "expectedTextIncludes": ["$1500", "divided as follows"]
+  },
+  {
+    "game": "Monopoly",
+    "query": "How can a player escape Jail?",
+    "expectedChunkIds": ["cc1c2c78-27c8-4a44-a121-766c6e0acc2c"],
+    "expectedTextIncludes": [
+      "throwing doubles on any of your next",
+      "a fine of $50 before you roll"
+    ]
   }
 ]
