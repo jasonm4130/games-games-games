@@ -1,10 +1,19 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // agent.ts uses TC39 Stage 3 decorators (@callable()), which the workerd V8 in the
 // vitest-pool-workers miniflare environment does not support natively. The @cloudflare/vite-plugin
 // compiles decorators at build time, but the test pool does not. We mock the entire agent module
 // so we only exercise the Hono route layer (which is all this test suite cares about).
 vi.mock("./agent", () => ({ RulesAgent: class {} }));
+
+// The eval routes import retrieve() directly (it pulls in Vectorize + AI bindings, remote-only in
+// the workers pool), so mock the module — these tests assert only the route guard + plumbing.
+const retrieveMock = vi.hoisted(() => vi.fn());
+const retrieveCandidatesMock = vi.hoisted(() => vi.fn());
+vi.mock("./rag/retrieve", () => ({
+  retrieve: retrieveMock,
+  retrieveCandidates: retrieveCandidatesMock,
+}));
 
 import app from "./index";
 
@@ -72,5 +81,63 @@ describe("POST /api/tts", () => {
     );
     const res = await ttsRequest({ text: "hello" }, fakeEnv());
     expect(res.status).toBe(502);
+  });
+});
+
+function evalRequest(body: unknown, env: Env, secretHeader?: string) {
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (secretHeader !== undefined) headers["x-eval-secret"] = secretHeader;
+  return app.request(
+    "/api/eval/retrieve",
+    { method: "POST", headers, body: JSON.stringify(body) },
+    env,
+  );
+}
+
+describe("POST /api/eval/retrieve (secret-gated)", () => {
+  beforeEach(() => {
+    retrieveMock.mockReset();
+    retrieveCandidatesMock.mockReset();
+    retrieveMock.mockResolvedValue([{ chunk: { id: "c1" }, score: 0.8 }]);
+    retrieveCandidatesMock.mockResolvedValue({ ids: ["c1", "c2"], cosineById: new Map() });
+  });
+
+  it("404s when EVAL_SECRET is unset (endpoint invisible)", async () => {
+    const env = fakeEnv({ EVAL_SECRET: undefined } as Partial<Env>);
+    const res = await evalRequest({ gameId: "g1", query: "q" }, env, "anything");
+    expect(res.status).toBe(404);
+    expect(retrieveMock).not.toHaveBeenCalled();
+  });
+
+  it("404s on a header mismatch", async () => {
+    const env = fakeEnv({ EVAL_SECRET: "right" } as Partial<Env>);
+    const res = await evalRequest({ gameId: "g1", query: "q" }, env, "wrong");
+    expect(res.status).toBe(404);
+    expect(retrieveMock).not.toHaveBeenCalled();
+  });
+
+  it("404s when the header is absent", async () => {
+    const env = fakeEnv({ EVAL_SECRET: "right" } as Partial<Env>);
+    const res = await evalRequest({ gameId: "g1", query: "q" }, env);
+    expect(res.status).toBe(404);
+  });
+
+  it("returns final ids, scores, and the candidate window on the right secret", async () => {
+    const env = fakeEnv({ EVAL_SECRET: "right" } as Partial<Env>);
+    const res = await evalRequest({ gameId: "g1", query: "q" }, env, "right");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ final: ["c1"], scores: [0.8], candidates: ["c1", "c2"] });
+  });
+
+  it("passes mode 'dense' through to retrieve for the dense baseline", async () => {
+    const env = fakeEnv({ EVAL_SECRET: "right" } as Partial<Env>);
+    await evalRequest({ gameId: "g1", query: "q", mode: "dense" }, env, "right");
+    expect(retrieveMock).toHaveBeenCalledWith(env, "q", { gameId: "g1", mode: "dense" });
+  });
+
+  it("400s on a missing gameId even with the right secret", async () => {
+    const env = fakeEnv({ EVAL_SECRET: "right" } as Partial<Env>);
+    const res = await evalRequest({ query: "q" }, env, "right");
+    expect(res.status).toBe(400);
   });
 });

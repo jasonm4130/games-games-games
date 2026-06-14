@@ -36,8 +36,9 @@ upsert into Vectorize (with metadata in D1). Triggered by Onboarding.
 _Avoid_: import, upload, processing
 
 **Retrieval**:
-Finding the Chunks most relevant to a question by querying Vectorize with the question's
-embedding.
+Finding the Chunks most relevant to a question, scoped to the active Game. Hybrid: a dense leg
+(Vectorize, the question's embedding) and a lexical leg (BM25 over the Rulebook text) are fused,
+then a reranker decides what is in scope. Both legs are Game-scoped.
 _Avoid_: search, lookup, query
 
 **Session**:
@@ -57,3 +58,15 @@ _Avoid_: library, collection, list
 The operator action of adding a Game and its Rulebook(s) to the Catalogue. The only way a
 Game enters the system; it triggers Ingestion. Distinct from a user starting a Session.
 _Avoid_: upload, import, signup
+
+**Gold set**:
+A curated list of rules questions paired with the Chunk(s) that should answer each — the
+ground truth the Eval scores Retrieval against. Catalogue-wide and verified against live D1
+(`eval/gold/catalogue.json`): every row's `expectedChunkIds` must exist for the right Game.
+_Avoid_: test set, fixtures, benchmark
+
+**Eval**:
+The operator measurement of Retrieval quality against a Gold set (Hit-Rate@5, Recall@20,
+Precision@5; dense-vs-hybrid deltas) and of answer quality across generation models. Not a
+user-facing feature — an operator harness.
+_Avoid_: test, benchmark, score

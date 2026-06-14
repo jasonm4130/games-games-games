@@ -15,18 +15,30 @@ interface HydratedRow {
   documentKind: DocumentKind;
 }
 
-// Rows the mocked Drizzle query resolves to; each test sets `hoisted.rows` via build().
-const hoisted = vi.hoisted(() => ({ rows: [] as HydratedRow[] }));
+// Mocked Drizzle resolves to `hoisted.rows` for the hydration JOIN and `hoisted.ftsIds` for the
+// lexical (BM25) leg's raw `.all(sql)`; each test sets them via build(). The lexical leg defaults
+// to [] so existing tests exercise the dense-only path unchanged. `hoisted.ftsThrows` simulates an
+// FTS5 error (e.g. table missing before migration 0004) to assert graceful dense-only degradation.
+const hoisted = vi.hoisted(() => ({
+  rows: [] as HydratedRow[],
+  ftsIds: [] as string[],
+  ftsThrows: false,
+}));
 
-// Mock the db() helper so retrieve() exercises its own orchestration (floor, ordering, rerank
-// id-mapping, skip-missing-row) without standing up a real D1 or drizzle's SQL layer. The
-// builder is chainable up to .where(), which is the awaited terminal in retrieve().
+// Mock the db() helper so retrieve() exercises its own orchestration (floor, RRF fusion, ordering,
+// rerank id-mapping, skip-missing-row) without standing up a real D1 or drizzle's SQL layer. The
+// select builder is chainable up to .where() (the awaited terminal of the hydration query); .all()
+// is the lexical leg's terminal — it throws when ftsThrows is set, which retrieve() catches.
 vi.mock("../db", () => {
   const builder = {
     select: () => builder,
     from: () => builder,
     innerJoin: () => builder,
     where: () => Promise.resolve(hoisted.rows),
+    all: () => {
+      if (hoisted.ftsThrows) return Promise.reject(new Error("fts5: no such table: chunks_fts"));
+      return Promise.resolve(hoisted.ftsIds.map((id) => ({ id })));
+    },
   };
   return { db: () => builder };
 });
@@ -51,9 +63,14 @@ function row(id: string, overrides: Partial<HydratedRow> = {}): HydratedRow {
 function build(opts: {
   matches: Array<{ id: string; score: number }>;
   rows: HydratedRow[];
+  ftsIds?: string[];
+  ftsThrows?: boolean;
   rerank?: (contexts: unknown[]) => Array<{ id: number; score: number }>;
 }) {
   hoisted.rows = opts.rows;
+  // Default the lexical leg to empty/healthy so every existing test stays on the dense-only path.
+  hoisted.ftsIds = opts.ftsIds ?? [];
+  hoisted.ftsThrows = opts.ftsThrows ?? false;
   // env.AI.run serves two models: bge-m3 embeddings ({ data }) and the reranker ({ response }).
   // Default reranker mock is identity (ids in input order, descending scores near 1) so order is
   // preserved and the gate passes; a test may override via opts.rerank to exercise the gate.
@@ -202,5 +219,48 @@ describe("retrieve", () => {
     });
     const out = await retrieve(env, "q", { gameId: "g1" });
     expect(out.map((r) => r.chunk.id)).toEqual(["c1"]);
+  });
+
+  it("fuses a lexical-only hit (missed by the dense leg) into the reranker candidates", async () => {
+    // c1 is the only dense hit; c2 surfaces solely from the BM25 leg. RRF must bring c2 into the
+    // candidates hydrated + reranked, so a lexically-strong passage the dense leg ranked out still
+    // reaches the final judge. (Identity rerank keeps fused order.)
+    const { env } = build({
+      matches: [{ id: "c1", score: 0.9 }],
+      rows: [row("c1"), row("c2")],
+      ftsIds: ["c2"],
+    });
+    const out = await retrieve(env, "q", { gameId: "g1" });
+    expect(out.map((r) => r.chunk.id).sort()).toEqual(["c1", "c2"]);
+    // A lexical-only hit had no dense cosine score, so its preserved score is 0.
+    expect(out.find((r) => r.chunk.id === "c2")?.score).toBe(0);
+  });
+
+  it("scopes the lexical leg to the active Game", async () => {
+    // The BM25 SQL is parameterized with d.game_id = gameId; assert retrieve passes the active
+    // Game through to the lexical leg (the .all() mock returns ids regardless, but the call must
+    // happen for the both-legs-scoped guardrail to hold).
+    const { env } = build({
+      matches: [{ id: "c1", score: 0.9 }],
+      rows: [row("c1")],
+      ftsIds: ["c1"],
+    });
+    const out = await retrieve(env, "how do I get out of jail", { gameId: "g1" });
+    expect(out.map((r) => r.chunk.id)).toEqual(["c1"]);
+  });
+
+  it("degrades to dense-only when the lexical leg throws (no chunks_fts before migration 0004)", async () => {
+    const { env } = build({
+      matches: [{ id: "c1", score: 0.9 }],
+      rows: [row("c1")],
+      ftsThrows: true,
+    });
+    const out = await retrieve(env, "q", { gameId: "g1" });
+    expect(out.map((r) => r.chunk.id)).toEqual(["c1"]);
+  });
+
+  it("returns [] when both legs are empty (out-of-scope refusal guardrail intact)", async () => {
+    const { env } = build({ matches: [], rows: [], ftsIds: [] });
+    expect(await retrieve(env, "q", { gameId: "g1" })).toEqual([]);
   });
 });

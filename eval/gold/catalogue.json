@@ -1,0 +1,320 @@
+[
+  {
+    "game": "Catan",
+    "query": "What resources do you need to build a ship in Catan Seafarers?",
+    "expectedChunkIds": ["5c893ab6-953a-4a46-9dee-615810c948be"],
+    "expectedTextIncludes": ["expend 1 wool resource (to make sails)", "build hulls and masts"]
+  },
+  {
+    "game": "Catan",
+    "query": "When a gold field hex number is rolled in Seafarers, which resources can a player with an adjacent settlement choose?",
+    "expectedChunkIds": ["657a9302-1fcf-4b70-a0fa-3ac3928e65a3"],
+    "expectedTextIncludes": [
+      "gold field hexes represent regions rich in gold nuggets",
+      "select ANY of the five"
+    ]
+  },
+  {
+    "game": "Catan",
+    "query": "How many adjacent intersections must be empty for you to legally place a settlement?",
+    "expectedChunkIds": ["7455ea8f-eafa-4a81-8002-dcba50bf44d6"],
+    "expectedTextIncludes": [
+      "3 of the adjacent intersections are",
+      "must select half (rounded down) of their resource cards"
+    ]
+  },
+  {
+    "game": "Catan",
+    "query": "What happens to the Longest Road card if a player's road is broken by a settlement and there is a tie?",
+    "expectedChunkIds": ["f3b681ac-6924-497d-9a1a-3cdcccf6abad"],
+    "expectedTextIncludes": [
+      "continuous road of at least 5 individual",
+      "If your longest road is broken and you are"
+    ]
+  },
+  {
+    "game": "Catan",
+    "query": "How many number tokens are in Catan, and why is there no token with the number 7?",
+    "expectedChunkIds": ["43a83c47-af82-4759-afc3-238d16f299c5"],
+    "expectedTextIncludes": ["18 number tokens are marked with the", "There is only one"]
+  },
+  {
+    "game": "Catan",
+    "query": "What is the trade rate at a generic harbor versus a special harbor in Catan?",
+    "expectedChunkIds": ["442142c3-9bc8-49fa-a884-76a5f11ada61"],
+    "expectedTextIncludes": ["Generic Harbor (3:1): Here", "Special Harbor (2:1): There is"]
+  },
+  {
+    "game": "Catan",
+    "query": "Does the desert hex produce any resources, and where does the robber start?",
+    "expectedChunkIds": ["29b0a22d-de28-4c54-90bd-6cd8b367c155"],
+    "expectedTextIncludes": [
+      "desert is the only terrain hex that",
+      "You cannot trade or give away development cards"
+    ]
+  },
+  {
+    "game": "Catan",
+    "query": "If there are not enough resource cards in the bank to pay all players when a number is rolled, what happens?",
+    "expectedChunkIds": ["d84d9a6d-66cc-482c-9f41-8eecb4c8a7f4"],
+    "expectedTextIncludes": [
+      "no player receives any of that resource that turn",
+      "shortage of resource cards only affects"
+    ]
+  },
+  {
+    "game": "The Quacks of Quedlinburg",
+    "query": "What causes a pot to explode and what happens when it does?",
+    "expectedChunkIds": ["5ab72a06-efc5-49e3-9931-00c8647fa0a6"],
+    "expectedTextIncludes": [
+      "sum of all white chips drawn exceeds the value",
+      "only the values on the white chips are added up"
+    ]
+  },
+  {
+    "game": "The Quacks of Quedlinburg",
+    "query": "When can you use the flask to put a chip back in your bag?",
+    "expectedChunkIds": ["d2c6ed8b-3e39-419d-8e18-4505a2dd09e2"],
+    "expectedTextIncludes": ["If the last chip you drew was white, you may", "flask cannot be used"]
+  },
+  {
+    "game": "The Quacks of Quedlinburg",
+    "query": "What mandatory rule change happens before turn 6 starts?",
+    "expectedChunkIds": ["8112930c-daa2-4318-81bb-9c1307c89a0d"],
+    "expectedTextIncludes": ["Before beginning turn 6", "has to put 1 more white 1-chip into"]
+  },
+  {
+    "game": "The Quacks of Quedlinburg",
+    "query": "How many chips can you buy per turn and is there any restriction on what you can pick?",
+    "expectedChunkIds": ["df76c322-07ab-4797-a3de-aa51350a4f11"],
+    "expectedTextIncludes": [
+      "You may buy 1 or 2 chips",
+      "buying 2 chips, they cannot be the same color"
+    ]
+  },
+  {
+    "game": "The Quacks of Quedlinburg",
+    "query": "What special ability does a pumpkin chip have in the pot, and can it be upgraded?",
+    "expectedChunkIds": ["12af54a4-c9b4-43c0-bfe4-f6b6ec9a88bb"],
+    "expectedTextIncludes": ["a pumpkin has no", "not apply to pumpkins"]
+  },
+  {
+    "game": "The Quacks of Quedlinburg",
+    "query": "How does the final turn of the game work differently from other turns, and how is the winner determined?",
+    "expectedChunkIds": ["78836fce-691e-4390-873b-3fda683845d2"],
+    "expectedTextIncludes": [
+      "the start player gives the command",
+      "player whose scoring marker is the furthest"
+    ]
+  },
+  {
+    "game": "Mistborn: The Deck-Building Game",
+    "query": "What does the SENSE ability do to another player's Mission Track progress?",
+    "expectedChunkIds": ["8d96c3c4-ea88-4fb3-9a03-42ceb813d9a4"],
+    "expectedTextIncludes": [
+      "Sense stops other players from advancing on the",
+      "affects the whole turn"
+    ]
+  },
+  {
+    "game": "Mistborn: The Deck-Building Game",
+    "query": "Where do Ally cards go after they are played, and what happens when they are defeated?",
+    "expectedChunkIds": ["f7a3518c-8514-466a-9a6b-4a1fc6a93a54"],
+    "expectedTextIncludes": ["they go above your character card", "stay until they are defeated"]
+  },
+  {
+    "game": "Mistborn: The Deck-Building Game",
+    "query": "How many metal tokens can a player Burn per turn by the time they reach the end of the Training track?",
+    "expectedChunkIds": ["a6b906c9-f6a2-4689-990d-612aa024405f"],
+    "expectedTextIncludes": [
+      "be able to Burn 4 metal",
+      "By the time you reach the end of the track"
+    ]
+  },
+  {
+    "game": "Mistborn: The Deck-Building Game",
+    "query": "In a 3-4 player game, when is the Target allowed to be passed to another player?",
+    "expectedChunkIds": ["ee046022-5fb4-4864-a4c9-b3220a55a757"],
+    "expectedTextIncludes": [
+      "they may pass the Target to\nanother player",
+      "Target passing only happens after all damage\nhas already been used for that turn"
+    ]
+  },
+  {
+    "game": "Mistborn: The Deck-Building Game",
+    "query": "How much health does the Lord Ruler regain for each incomplete Mission when an Edict is drawn?",
+    "expectedChunkIds": ["b52e6a8f-fd27-4274-8b4a-952c407d3c8e"],
+    "expectedTextIncludes": [
+      "the Lord Ruler heals 10 Life points (to a max",
+      "For each Mission that is not completed\nby the Players"
+    ]
+  },
+  {
+    "game": "Mistborn: The Deck-Building Game",
+    "query": "How many Mission points are required to reach the top of a Mission track?",
+    "expectedChunkIds": ["b2a9ebf8-c5bc-4bb9-8b4c-54e28063570d"],
+    "expectedTextIncludes": [
+      "It takes 12 Mission points to reach the top",
+      "The Mid-Track First Player Rewards: Every Mission Track"
+    ]
+  },
+  {
+    "game": "Five Hundred",
+    "query": "In Five Hundred, what is the order of trumps from highest to lowest, and how do the joker and left bower behave?",
+    "expectedChunkIds": ["1ecc70c0-e854-45e6-9c6e-181e1e154241"],
+    "expectedTextIncludes": ["right bower", "left bower"]
+  },
+  {
+    "game": "Five Hundred",
+    "query": "What is the lowest possible bid in Five Hundred and where do Misere and Open Misere rank in the bidding order?",
+    "expectedChunkIds": ["b95675f4-7cf3-4004-a41b-ab8dfefa8ce6"],
+    "expectedTextIncludes": [
+      "Six Spades and the highest is",
+      "Open Misere is higher than Ten Diamonds"
+    ]
+  },
+  {
+    "game": "Five Hundred",
+    "query": "What happens to a team's score if they win all 10 tricks (a slam) but their contract was only worth 150 points?",
+    "expectedChunkIds": ["2f43ac60-572d-44ee-bf4e-deeba052c962"],
+    "expectedTextIncludes": ["score 250 instead of their bid", "going out the back door"]
+  },
+  {
+    "game": "Five Hundred",
+    "query": "When playing a Misere or Open Misere contract, what does the contractor's partner do, and when must the contractor's hand be exposed?",
+    "expectedChunkIds": ["f2fd130b-307b-4918-b4b0-c25892b20d23"],
+    "expectedTextIncludes": [
+      "puts his cards\nface down on the table",
+      "after the first trick has been played"
+    ]
+  },
+  {
+    "game": "Five Hundred",
+    "query": "How many cards are in the Australian Five Hundred pack and what is the joker sometimes called?",
+    "expectedChunkIds": ["41f6e440-d9f4-4780-917e-9434c6491ccb"],
+    "expectedTextIncludes": ["joker, also called the bird", "kookaburra"]
+  },
+  {
+    "game": "Exploding Kittens",
+    "query": "How many Exploding Kittens go back into the deck during setup, and how is that number determined?",
+    "expectedChunkIds": ["6d5dfd06-01e4-4e2a-a1ef-4af69a7d80c6"],
+    "expectedTextIncludes": [
+      "there is 1 fewer than the number of people playing",
+      "Insert enough Exploding Kittens back into the deck so"
+    ]
+  },
+  {
+    "game": "Exploding Kittens",
+    "query": "When a player uses a Zombie Kitten to bring someone back from the dead, what happens to both Exploding Kittens?",
+    "expectedChunkIds": ["3f73fb0a-50a7-44c4-b816-429a7d47dd6a"],
+    "expectedTextIncludes": [
+      "put both of them separately back into the",
+      "the two Exploding\nKittens can be put in two different locations"
+    ]
+  },
+  {
+    "game": "Exploding Kittens",
+    "query": "If the victim of an Attack card plays their own Attack card in response, how many turns does the next player have to take?",
+    "expectedChunkIds": ["4ae81a81-71e2-4959-9ee7-0b26e20cdd8d"],
+    "expectedTextIncludes": [
+      "new target must take any remaining turns plus the number of",
+      "e.g., 4 turns, then 6, and so on"
+    ]
+  },
+  {
+    "game": "Exploding Kittens",
+    "query": "In a Special Combo, what can you do when you play 3 matching cards of the same title?",
+    "expectedChunkIds": ["159d39c2-2e7b-46b3-b5da-2f527fbab460"],
+    "expectedTextIncludes": ["pick a player and name a card", "When you play 3 matching cards"]
+  },
+  {
+    "game": "Euchre",
+    "query": "How many cards are dealt to each player and what is the trump suit card ranking in Euchre?",
+    "expectedChunkIds": ["be795a12-80b4-447a-b649-ea3bb381ed0d"],
+    "expectedTextIncludes": [
+      "Benny, or Best Bower (the joker or two of spades)",
+      "win at least three of the five tricks"
+    ]
+  },
+  {
+    "game": "Euchre",
+    "query": "How many points does the defending team score if the making team is euchred, and what happens when a lone maker wins all five tricks?",
+    "expectedChunkIds": ["079462df-fb0d-438b-b140-81c556cfc7e9"],
+    "expectedTextIncludes": [
+      "euchred, and the defenders score two points",
+      "makers' team is playing alone and wins all 5 tricks"
+    ]
+  },
+  {
+    "game": "Euchre",
+    "query": "How many points does a team need to win the game, and how do players typically keep score?",
+    "expectedChunkIds": ["17cd191b-0b39-494b-aa10-d6c1427e5834"],
+    "expectedTextIncludes": ["played to 11 points", "using a spare 5 and 6 from the pack"]
+  },
+  {
+    "game": "Euchre",
+    "query": "What is a 'Super-Euchre' and how many points does the defending team score for it?",
+    "expectedChunkIds": ["8456cdab-5fc9-45a0-ab7a-946c5b183ab3"],
+    "expectedTextIncludes": ["Super-Euchre", "the making team takes zero tricks"]
+  },
+  {
+    "game": "Monopoly",
+    "query": "What happens if you throw doubles three times in a row during your turn?",
+    "expectedChunkIds": ["7febfac5-5d69-4195-902f-c04370ed8f33"],
+    "expectedTextIncludes": [
+      "throw doubles three times in",
+      "move your token immediately to the space marked"
+    ]
+  },
+  {
+    "game": "Monopoly",
+    "query": "How do you get out of Jail if you don't want to wait to roll doubles?",
+    "expectedChunkIds": ["cc1c2c78-27c8-4a44-a121-766c6e0acc2c"],
+    "expectedTextIncludes": [
+      "throwing doubles on any of your next",
+      "a fine of $50 before you roll"
+    ]
+  },
+  {
+    "game": "Monopoly",
+    "query": "In the Short Game, how many houses do you need on each property before you can buy a hotel?",
+    "expectedChunkIds": ["3190405d-002b-448c-a88b-fe36067dbf45"],
+    "expectedTextIncludes": [
+      "only three houses (instead of four)",
+      "The game ends when one player goes bankrupt"
+    ]
+  },
+  {
+    "game": "Monopoly",
+    "query": "Can a player sell houses back to the Bank, and if so at what price?",
+    "expectedChunkIds": ["54806f15-7c92-47a6-810b-90381d2ae1dd"],
+    "expectedTextIncludes": ["you must build evenly", "Only one hotel may be erected"]
+  },
+  {
+    "game": "Sushi Go!",
+    "query": "How many cards are dealt to each player at the start of a 5-player game?",
+    "expectedChunkIds": ["30ece407-66ae-4076-9111-57ba945f1d00"],
+    "expectedTextIncludes": [
+      "In a 5 player game, deal 7 cards to each player",
+      "In a 4 player game, deal 8 cards to each player"
+    ]
+  },
+  {
+    "game": "Sushi Go!",
+    "query": "After you use a chopsticks card to take two cards on your turn, what do you do with the chopsticks card before passing hands?",
+    "expectedChunkIds": ["ae693c1b-1652-4004-8d9c-74810c24892e"],
+    "expectedTextIncludes": [
+      "put the chopsticks card\nback into your hand",
+      "This means it will now be\npassed on, and other players may take it"
+    ]
+  },
+  {
+    "game": "Sushi Go!",
+    "query": "In a 2-player game, does the player with the fewest pudding cards lose points at the end of the game?",
+    "expectedChunkIds": ["974c1f99-f715-4c2e-b6b1-261c52b4426e"],
+    "expectedTextIncludes": [
+      "In a 2 player game, no one loses any points for puddings",
+      "Only the points for most pudding cards are awarded"
+    ]
+  }
+]

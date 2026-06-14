@@ -1,7 +1,7 @@
 import type { UIMessage } from "ai";
 import { describe, expect, it } from "vitest";
 import type { RetrievedChunk } from "../../shared/types";
-import { formatGrounding, userTexts } from "./context";
+import { formatGrounding, reciprocalRankFusion, sanitizeFtsQuery, userTexts } from "./context";
 
 function userMsg(text: string): UIMessage {
   return { id: crypto.randomUUID(), role: "user", parts: [{ type: "text", text }] } as UIMessage;
@@ -103,5 +103,65 @@ describe("formatGrounding", () => {
       }),
     ]);
     expect(out).toBe("[1] (Base Game) base rule\n\n[2] (The Herb Witches — expansion) witch rule");
+  });
+});
+
+describe("reciprocalRankFusion", () => {
+  it("floats an id ranked high in both legs to the top", () => {
+    // "b" is rank 2 in the dense leg and rank 1 in the lexical leg, so it accrues two strong
+    // contributions; "a" leads dense but is absent from lexical, so b should win overall.
+    const fused = reciprocalRankFusion(
+      [
+        ["a", "b", "c"],
+        ["b", "d", "e"],
+      ],
+      15,
+    );
+    expect(fused[0]).toBe("b");
+  });
+
+  it("still ranks an id present in only one leg by its 1/(k+rank) contribution", () => {
+    // "x" appears only in the second list (rank 1) but should still rank above "c" (only in the
+    // first list at rank 3): 1/(15+1) > 1/(15+3).
+    const fused = reciprocalRankFusion([["a", "b", "c"], ["x"]], 15);
+    expect(fused.indexOf("x")).toBeLessThan(fused.indexOf("c"));
+  });
+
+  it("returns a single list's order unchanged (FTS-empty degradation contract)", () => {
+    expect(reciprocalRankFusion([["a", "b", "c"]], 15)).toEqual(["a", "b", "c"]);
+  });
+
+  it("degrades to the dense list when the lexical leg is empty", () => {
+    expect(reciprocalRankFusion([["a", "b", "c"], []], 15)).toEqual(["a", "b", "c"]);
+  });
+
+  it("returns [] for empty input", () => {
+    expect(reciprocalRankFusion([], 15)).toEqual([]);
+    expect(reciprocalRankFusion([[], []], 15)).toEqual([]);
+  });
+
+  it("breaks ties by first appearance across the legs", () => {
+    // Each id appears exactly once at rank 1 of its own leg, so all fused scores are equal; order
+    // must be stable by first appearance ("a" before "b" before "c").
+    expect(reciprocalRankFusion([["a"], ["b"], ["c"]], 15)).toEqual(["a", "b", "c"]);
+  });
+});
+
+describe("sanitizeFtsQuery", () => {
+  it("neutralises FTS5 operators by quoting each token as a string literal", () => {
+    const out = sanitizeFtsQuery('how do I get "out" OR jail?');
+    // Every word becomes a double-quoted literal — including the user's "OR", which is now the
+    // matched word "or", not the FTS5 OR operator. Quotes and "?" drop out as punctuation; no bare
+    // operator survives to throw a MATCH syntax error.
+    expect(out).toBe('"how" OR "do" OR "I" OR "get" OR "out" OR "OR" OR "jail"');
+  });
+
+  it("returns '' for all-punctuation input (caller then skips the FTS leg)", () => {
+    expect(sanitizeFtsQuery("()*^:")).toBe("");
+    expect(sanitizeFtsQuery("   ")).toBe("");
+  });
+
+  it("OR-joins quoted tokens for a normal multi-word question", () => {
+    expect(sanitizeFtsQuery("how many players")).toBe('"how" OR "many" OR "players"');
   });
 });

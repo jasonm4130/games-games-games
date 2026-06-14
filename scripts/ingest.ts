@@ -13,6 +13,10 @@
  * IS the vector id — ADR 0004) and delete those before reinserting. Heavy work (extract,
  * chunk, embed) happens BEFORE the delete, so a mid-run failure leaves the prior index intact.
  *
+ * FTS5 sync is automatic (GAP 1): the lexical-leg mirror `chunks_fts` (migration 0004) is kept
+ * 1:1 with `chunks` by triggers, so the DELETE-then-bulk-INSERT below fires AFTER DELETE / AFTER
+ * INSERT per row and rebuilds the FTS rows with NO FTS-specific statements here. Do not add any.
+ *
  * Auth — everything rides your `wrangler login` session. R2, D1, and Vectorize go through the
  * `wrangler` CLI directly. Embeddings hit the Workers AI REST API (the one thing `wrangler ai`
  * can't run), but its bearer token + account id are pulled from wrangler too — `wrangler auth

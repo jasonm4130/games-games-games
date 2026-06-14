@@ -14,6 +14,20 @@ export const EMBEDDING_DIMENSIONS = 1024;
 export const GENERATION_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
 /**
+ * Generation models the EVAL HARNESS (GAP 2) compares answer quality across — NEVER the
+ * production default. The eval's --gen mode runs each gold question through every model here and
+ * scores citation validity + token overlap so the human can judge a cutover (e.g. gemma's larger
+ * context + ~8x cheaper output). GENERATION_MODEL above stays llama-3.3-70b until a human switches
+ * it deliberately; this list does not change the agent. gemma id/pricing verified 2026-06-14:
+ * @cf/google/gemma-4-26b-a4b-it — 256k-token context, $0.10/M in + $0.30/M out (vs llama-3.3-70b's
+ * 24k context, $0.29/$2.25).
+ */
+export const GEN_EVAL_MODELS = [
+  "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+  "@cf/google/gemma-4-26b-a4b-it",
+] as const;
+
+/**
  * Chunking budget, in bge-m3 tokens (not characters). Target ~512 (BAAI's own
  * recommendation — retrieval degrades with larger chunks), hard cap 1024 so a long
  * numbered rule with sub-clauses stays whole without nearing bge-m3's 8192 limit, leaving
@@ -52,6 +66,16 @@ export const RERANK_MIN_SCORE = 0.2;
 export const RETRIEVAL_TOP_K = 5;
 /** Over-fetch count: how many Vectorize candidates to pull before the reranker narrows to RETRIEVAL_TOP_K. */
 export const RETRIEVAL_FETCH_N = 20;
+
+/**
+ * Reciprocal Rank Fusion damping constant. RRF scores a candidate as Σ 1/(RRF_K + rank) over the
+ * dense + lexical (BM25) legs, fusing them before the reranker (GAP 1). The textbook k=60 was tuned
+ * for TREC-scale lists of thousands; on this 30–80-chunk corpus it over-flattens — every rank's
+ * 1/(60+rank) contribution collapses toward the same value, erasing the top-rank signal both legs
+ * agree on. A smaller k keeps the head of each list dominant, which is what we want when the
+ * reranker (not RRF) makes the final call. ~15 sits in the 10–20 band that preserves that signal.
+ */
+export const RRF_K = 15;
 
 /**
  * Cross-encoder reranking model. Applied after the cosine floor to reorder surviving

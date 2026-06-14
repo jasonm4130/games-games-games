@@ -1,7 +1,8 @@
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import type { RetrievedChunk } from "../../shared/types";
 import { db } from "../db";
 import { chunks, documents, games } from "../db/schema";
+import { reciprocalRankFusion, sanitizeFtsQuery } from "./context";
 import { embed } from "./embed";
 import {
   RERANK_MIN_SCORE,
@@ -9,6 +10,7 @@ import {
   RETRIEVAL_FETCH_N,
   RETRIEVAL_MIN_SCORE,
   RETRIEVAL_TOP_K,
+  RRF_K,
 } from "./models";
 
 export interface RetrieveOptions {
@@ -19,15 +21,97 @@ export interface RetrieveOptions {
    */
   gameId?: string;
   topK?: number;
+  /**
+   * Retrieval mode (GAP 2 eval seam, default "hybrid"). "hybrid" runs both the dense ANN leg and
+   * the lexical BM25 leg and fuses them; "dense" skips the lexical leg for a pure-dense baseline so
+   * the eval can measure the dense-vs-hybrid delta. Inert in production (the agent never sets it, so
+   * it defaults to hybrid).
+   */
+  mode?: "dense" | "hybrid";
 }
 
 /**
- * Retrieve the Chunks most relevant to a question, scoped to one Game. Embeds the question
- * (bge-m3, no query prefix), queries Vectorize filtered by `game_id` (over-fetching RETRIEVAL_FETCH_N
- * candidates), drops clear noise below the cosine bound, hydrates text + page span + Game name from
- * D1, then reranks survivors with bge-reranker-base and keeps those at/above RERANK_MIN_SCORE — the
- * in-scope gate (ADR 0004) — in reranker order, returning [] if none clear it. `.score` on each
- * result stays the original cosine score, for Citation display.
+ * Lexical leg (GAP 1): rank chunk ids by BM25 over the FTS5 mirror `chunks_fts`, scoped to the
+ * active Game via the documents join (the second of the two Game-scoped legs — the dense leg is
+ * scoped by the Vectorize game_id filter). bm25() is ascending (best = most negative), so ORDER BY
+ * bm25 ASC is best-first. Returns ids best-first, capped at RETRIEVAL_FETCH_N. The whole call is
+ * wrapped so any MATCH-syntax/binding error (or a missing chunks_fts table before migration 0004)
+ * degrades to dense-only — it returns [] and never throws.
+ */
+async function lexicalSearch(env: Env, query: string, gameId: string): Promise<string[]> {
+  const match = sanitizeFtsQuery(query);
+  if (!match) return [];
+  try {
+    const rows = await db(env).all<{ id: string }>(sql`
+      SELECT f.chunk_id AS id
+      FROM chunks_fts f
+      JOIN chunks c ON c.id = f.chunk_id
+      JOIN documents d ON d.id = c.document_id
+      WHERE chunks_fts MATCH ${match} AND d.game_id = ${gameId}
+      ORDER BY bm25(chunks_fts)
+      LIMIT ${RETRIEVAL_FETCH_N}
+    `);
+    return rows.map((r) => r.id);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The fused candidate window that reaches the reranker: the dense ANN leg + the lexical BM25 leg
+ * (skipped in "dense" mode), floored, fused by RRF, sliced to RETRIEVAL_FETCH_N. `ids` are in fused
+ * order; `cosineById` carries each dense hit's cosine score (lexical-only hits are absent → scored 0
+ * downstream). Extracted (GAP 2) so the eval endpoint can report Recall@20 over this window without
+ * a generation call; retrieve() calls it and then hydrates + reranks. Returns [] ids when nothing
+ * survives both legs, so retrieve's out-of-scope refusal still fires.
+ */
+export async function retrieveCandidates(
+  env: Env,
+  question: string,
+  opts: RetrieveOptions = {},
+): Promise<{ ids: string[]; cosineById: Map<string, number> }> {
+  const query = question.trim();
+  if (!opts.gameId || !query) return { ids: [], cosineById: new Map() };
+  const gameId = opts.gameId;
+
+  const [vector] = await embed(env.AI, [query]);
+  if (!vector) return { ids: [], cosineById: new Map() };
+
+  // Run the dense ANN leg and the lexical BM25 leg in parallel. Both are Game-scoped (the dense leg
+  // by the Vectorize game_id filter, the lexical leg by its documents join). The lexical leg never
+  // throws (it degrades to []), so the dense leg alone always carries the pipeline. In "dense" mode
+  // (the eval baseline) the lexical leg is skipped entirely for a pure-dense ranking.
+  const [result, ftsIds] = await Promise.all([
+    env.RULES_IDX.query(vector, {
+      topK: opts.topK ?? RETRIEVAL_FETCH_N,
+      returnMetadata: "none",
+      filter: { game_id: gameId },
+    }),
+    opts.mode === "dense" ? Promise.resolve<string[]>([]) : lexicalSearch(env, query, gameId),
+  ]);
+
+  // Noise bound on the dense leg: drop obviously-unrelated candidates cheaply before fusion. This
+  // is a permissive floor, NOT the relevance judge — the cross-encoder below decides what grounds a
+  // Ruling. (Cross-game isolation is the game_id filter above, not this floor.) Cosine scores are
+  // kept so the final result can carry them for Citation display.
+  const denseHits = result.matches.filter((match) => match.score >= RETRIEVAL_MIN_SCORE);
+  const cosineById = new Map(denseHits.map((match) => [match.id, match.score]));
+  const denseIds = denseHits.map((match) => match.id);
+
+  // Fuse the two ranked id-lists with RRF before the reranker — a passage strong in either leg
+  // surfaces. With an empty lexical leg this is pure dense order; with both legs empty it is [], so
+  // retrieve returns [] and the agent's free out-of-scope refusal fires.
+  const ids = reciprocalRankFusion([denseIds, ftsIds], RRF_K).slice(0, RETRIEVAL_FETCH_N);
+  return { ids, cosineById };
+}
+
+/**
+ * Retrieve the Chunks most relevant to a question, scoped to one Game. Builds the fused candidate
+ * window (retrieveCandidates: dense ANN + lexical BM25 legs, floored + RRF-fused, GAP 1), hydrates
+ * those (text + page span + Game name) from D1, reranks with bge-reranker-base, and keeps those
+ * at/above RERANK_MIN_SCORE — the in-scope gate (ADR 0004) — in reranker order, returning [] if none
+ * clear it (so the agent's free out-of-scope refusal still fires). `.score` on each result is the
+ * cosine score (0 for a lexical-only hit, which had no dense score), for Citation display.
  */
 export async function retrieve(
   env: Env,
@@ -35,24 +119,9 @@ export async function retrieve(
   opts: RetrieveOptions = {},
 ): Promise<RetrievedChunk[]> {
   const query = question.trim();
-  if (!opts.gameId || !query) return [];
+  const { ids, cosineById } = await retrieveCandidates(env, query, opts);
+  if (ids.length === 0) return [];
 
-  const [vector] = await embed(env.AI, [query]);
-  if (!vector) return [];
-
-  const result = await env.RULES_IDX.query(vector, {
-    topK: opts.topK ?? RETRIEVAL_FETCH_N,
-    returnMetadata: "none",
-    filter: { game_id: opts.gameId },
-  });
-
-  // Noise bound: drop obviously-unrelated candidates cheaply before the reranker. This is a
-  // permissive floor, NOT the relevance judge — the cross-encoder below decides what grounds a
-  // Ruling. (Cross-game isolation is the game_id filter above, not this floor.)
-  const hits = result.matches.filter((match) => match.score >= RETRIEVAL_MIN_SCORE);
-  if (hits.length === 0) return [];
-
-  const ids = hits.map((match) => match.id);
   const rows = await db(env)
     .select({
       id: chunks.id,
@@ -72,9 +141,9 @@ export async function retrieve(
 
   const byId = new Map(rows.map((row) => [row.id, row]));
 
-  // Build ordered survivors (preserving Vectorize score order; skip any match missing its D1 row).
-  const survivors: RetrievedChunk[] = hits.flatMap((match) => {
-    const row = byId.get(match.id);
+  // Build ordered survivors in fused (RRF) order; skip any id missing its D1 row.
+  const survivors: RetrievedChunk[] = ids.flatMap((id) => {
+    const row = byId.get(id);
     if (!row) return [];
     return [
       {
@@ -89,7 +158,8 @@ export async function retrieve(
         gameName: row.gameName,
         documentTitle: row.documentTitle,
         documentKind: row.documentKind,
-        score: match.score, // cosine score — preserved in final output for Citation display
+        // cosine score — preserved for Citation display; 0 for a lexical-only hit (no dense score).
+        score: cosineById.get(id) ?? 0,
       },
     ];
   });
