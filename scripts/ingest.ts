@@ -30,24 +30,30 @@
  *     [--edition "5th"] [--kind base|expansion|errata] [--contextual]
  */
 
-import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseArgs, promisify } from "node:util";
+import { parseArgs } from "node:util";
 import { AutoTokenizer } from "@huggingface/transformers";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { chunkPages } from "../src/server/rag/chunk";
 import { EMBEDDING_MODEL } from "../src/server/rag/models";
 import type { ChunkInput, DocumentKind, PageText } from "../src/shared/types";
-
-const execFileP = promisify(execFile);
+import {
+  CF_API,
+  D1_DATABASE,
+  d1Select,
+  fail,
+  requireEnv,
+  resolveCloudflareAuth,
+  sqlStr,
+  wrangler,
+} from "./lib/wrangler";
 
 const VECTORIZE_INDEX = "ggg-rules-index";
 const R2_BUCKET = "ggg-rulebooks";
-const D1_DATABASE = "ggg-db";
 const EMBED_BATCH = 100; // Workers AI bge-m3 caps simple-embedding input at 100 strings/call.
 // …and at 60000 summed tokens/call. This is a LOCAL-tokenizer budget: the Xenova/bge-m3
 // tokenizer we count with undercounts vs Workers AI's server-side count by ~2.5x (53 contextual
@@ -57,98 +63,9 @@ const DELETE_BATCH = 1000; // ids per `wrangler vectorize delete-vectors --ids` 
 const CONTEXTUAL_MODEL = "kimi-k2.7-code";
 const CONTEXTUAL_MAX_TOKENS = 1024; // headroom: k2.7 thinks before emitting the 1-2 sentence blurb.
 const MOONSHOT_API = "https://api.moonshot.ai/v1";
-const CF_API = "https://api.cloudflare.com/client/v4";
 const VALID_KINDS: DocumentKind[] = ["base", "expansion", "errata"];
 
-function fail(message: string): never {
-  console.error(`✗ ${message}`);
-  process.exit(1);
-}
-
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) fail(`missing required env var ${name}`);
-  return value;
-}
-
-/** SQLite string literal: wrap in single quotes, doubling any embedded quote. */
-function sqlStr(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`;
-}
-
-// ── wrangler shell-outs (R2 + D1 + Vectorize) ────────────────────────────────────────────────
-// These run against your `wrangler login` (OAuth) session. CLOUDFLARE_API_TOKEN is stripped from
-// the child env so a leftover/narrow token in the shell can't shadow OAuth and fail on a scope.
-
-async function wrangler(args: string[]): Promise<string> {
-  const env = { ...process.env };
-  delete env.CLOUDFLARE_API_TOKEN;
-  const { stdout } = await execFileP("pnpm", ["exec", "wrangler", ...args], {
-    env,
-    maxBuffer: 256 * 1024 * 1024,
-  });
-  return stdout;
-}
-
-/** Run a wrangler `--json` command and parse the single JSON object it prints (banner-tolerant). */
-async function wranglerJson<T>(args: string[]): Promise<T> {
-  const stdout = await wrangler(args);
-  const start = stdout.indexOf("{");
-  const end = stdout.lastIndexOf("}");
-  if (start < 0 || end <= start) throw new Error(`wrangler ${args.join(" ")}: no JSON in output`);
-  return JSON.parse(stdout.slice(start, end + 1)) as T;
-}
-
-/**
- * Resolve the account id + a REST bearer for the Workers AI embeddings call from your wrangler
- * session: `wrangler whoami` for the account, `wrangler auth token` for the bearer (a valid
- * Cloudflare REST credential, auto-refreshed) — so no standalone CLOUDFLARE_AI_TOKEN is needed.
- * CLOUDFLARE_ACCOUNT_ID is honoured as an override, and required to disambiguate a multi-account
- * login. CLOUDFLARE_API_TOKEN is stripped from both subprocesses by wrangler() so a stale shell
- * token can't shadow the login (which would make the returned bearer the wrong credential).
- */
-async function resolveCloudflareAuth(): Promise<{ accountId: string; aiToken: string }> {
-  const who = await wranglerJson<{ loggedIn?: boolean; accounts?: { id: string; name: string }[] }>(
-    ["whoami", "--json"],
-  );
-  const accounts = who.accounts ?? [];
-  if (!who.loggedIn || accounts.length === 0) {
-    fail("not logged in to wrangler — run `wrangler login` (and unset CLOUDFLARE_API_TOKEN)");
-  }
-  let accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-  if (!accountId) {
-    if (accounts.length > 1) {
-      fail(
-        `wrangler login has ${accounts.length} accounts — set CLOUDFLARE_ACCOUNT_ID to choose one`,
-      );
-    }
-    accountId = accounts[0]?.id;
-  }
-  if (!accountId) fail("could not resolve a Cloudflare account id from `wrangler whoami`");
-  const auth = await wranglerJson<{ token?: string }>(["auth", "token", "--json"]);
-  if (!auth.token) fail("`wrangler auth token` returned no token — re-run `wrangler login`");
-  return { accountId, aiToken: auth.token };
-}
-
-/** Run a read query and return its rows. `wrangler --json` prints a `[{ results: [...] }]` array. */
-async function d1Select<T>(sql: string): Promise<T[]> {
-  const stdout = await wrangler([
-    "d1",
-    "execute",
-    D1_DATABASE,
-    "--remote",
-    "--json",
-    "--command",
-    sql,
-  ]);
-  // wrangler may print a banner before the JSON; slice between the outer brackets. Safe here
-  // because every d1Select query returns only ids (UUIDs), which never contain '[' or ']'.
-  const start = stdout.indexOf("[");
-  const end = stdout.lastIndexOf("]");
-  if (start < 0 || end <= start) return [];
-  const parsed = JSON.parse(stdout.slice(start, end + 1)) as Array<{ results?: T[] }>;
-  return parsed[0]?.results ?? [];
-}
+// ── D1 / R2 / Vectorize via wrangler (shared OAuth plumbing lives in ./lib/wrangler) ───────────
 
 /** Run a write statement, ignoring output. */
 async function d1Run(sql: string): Promise<void> {

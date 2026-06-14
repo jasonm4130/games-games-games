@@ -457,6 +457,14 @@ body::before {
   cursor: not-allowed;
 }
 
+.turn__voice-error {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--red);
+}
+
 .turn__body {
   font-size: 16px;
   line-height: 1.55;

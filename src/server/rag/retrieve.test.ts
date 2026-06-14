@@ -23,6 +23,7 @@ const hoisted = vi.hoisted(() => ({
   rows: [] as HydratedRow[],
   ftsIds: [] as string[],
   ftsThrows: false,
+  lastAllArg: null as unknown, // the SQL object passed to the lexical leg's .all(), for assertions
 }));
 
 // Mock the db() helper so retrieve() exercises its own orchestration (floor, RRF fusion, ordering,
@@ -35,7 +36,8 @@ vi.mock("../db", () => {
     from: () => builder,
     innerJoin: () => builder,
     where: () => Promise.resolve(hoisted.rows),
-    all: () => {
+    all: (arg: unknown) => {
+      hoisted.lastAllArg = arg; // capture the lexical-leg SQL so a test can assert its bound params
       if (hoisted.ftsThrows) return Promise.reject(new Error("fts5: no such table: chunks_fts"));
       return Promise.resolve(hoisted.ftsIds.map((id) => ({ id })));
     },
@@ -71,6 +73,7 @@ function build(opts: {
   // Default the lexical leg to empty/healthy so every existing test stays on the dense-only path.
   hoisted.ftsIds = opts.ftsIds ?? [];
   hoisted.ftsThrows = opts.ftsThrows ?? false;
+  hoisted.lastAllArg = null;
   // env.AI.run serves two models: bge-m3 embeddings ({ data }) and the reranker ({ response }).
   // Default reranker mock is identity (ids in input order, descending scores near 1) so order is
   // preserved and the gate passes; a test may override via opts.rerank to exercise the gate.
@@ -236,17 +239,32 @@ describe("retrieve", () => {
     expect(out.find((r) => r.chunk.id === "c2")?.score).toBe(0);
   });
 
-  it("scopes the lexical leg to the active Game", async () => {
-    // The BM25 SQL is parameterized with d.game_id = gameId; assert retrieve passes the active
-    // Game through to the lexical leg (the .all() mock returns ids regardless, but the call must
-    // happen for the both-legs-scoped guardrail to hold).
+  it("scopes the lexical leg to the active Game (gameId bound into the BM25 SQL)", async () => {
+    // The BM25 SQL is parameterized with d.game_id = gameId. Capture the SQL object the lexical leg
+    // hands to .all() and assert the active Game id is among its bound params — proving the
+    // both-legs-scoped guardrail, not just that the call returned the expected output.
     const { env } = build({
       matches: [{ id: "c1", score: 0.9 }],
       rows: [row("c1")],
       ftsIds: ["c1"],
     });
-    const out = await retrieve(env, "how do I get out of jail", { gameId: "g1" });
+    const out = await retrieve(env, "how do I get out of jail", { gameId: "game-42" });
     expect(out.map((r) => r.chunk.id)).toEqual(["c1"]);
+    expect(JSON.stringify(hoisted.lastAllArg)).toContain("game-42");
+  });
+
+  it("skips the lexical leg entirely in dense mode (lexical-only hit excluded)", async () => {
+    // c1 is the only dense hit; c2 surfaces solely from the BM25 leg. In hybrid mode RRF would fuse
+    // c2 in (see the test above); in dense mode the lexical leg is skipped, so c2 must NOT appear and
+    // .all() is never called.
+    const { env } = build({
+      matches: [{ id: "c1", score: 0.9 }],
+      rows: [row("c1"), row("c2")],
+      ftsIds: ["c2"],
+    });
+    const out = await retrieve(env, "q", { gameId: "g1", mode: "dense" });
+    expect(out.map((r) => r.chunk.id)).toEqual(["c1"]);
+    expect(hoisted.lastAllArg).toBeNull();
   });
 
   it("degrades to dense-only when the lexical leg throws (no chunks_fts before migration 0004)", async () => {

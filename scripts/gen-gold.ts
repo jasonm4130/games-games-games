@@ -16,86 +16,13 @@
  *   pnpm gen-gold --game "Monopoly" [--edition "…"] --out eval/gold/monopoly.generated.json [--max 8]
  */
 
-import { execFile } from "node:child_process";
 import { writeFile } from "node:fs/promises";
-import { parseArgs, promisify } from "node:util";
+import { parseArgs } from "node:util";
 import { GENERATION_MODEL } from "../src/server/rag/models";
+import { CF_API, d1Select, fail, resolveCloudflareAuth, sqlStr } from "./lib/wrangler";
 
-const execFileP = promisify(execFile);
-
-const D1_DATABASE = "ggg-db";
-const CF_API = "https://api.cloudflare.com/client/v4";
 const DEFAULT_MAX = 8;
 const GEN_MAX_TOKENS = 200;
-
-function fail(message: string): never {
-  console.error(`✗ ${message}`);
-  process.exit(1);
-}
-
-function sqlStr(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`;
-}
-
-// ── wrangler shell-outs (read-only D1 + auth), same OAuth path as scripts/ingest.ts ────────────
-
-async function wrangler(args: string[]): Promise<string> {
-  const env = { ...process.env };
-  delete env.CLOUDFLARE_API_TOKEN;
-  const { stdout } = await execFileP("pnpm", ["exec", "wrangler", ...args], {
-    env,
-    maxBuffer: 256 * 1024 * 1024,
-  });
-  return stdout;
-}
-
-async function wranglerJson<T>(args: string[]): Promise<T> {
-  const stdout = await wrangler(args);
-  const start = stdout.indexOf("{");
-  const end = stdout.lastIndexOf("}");
-  if (start < 0 || end <= start) throw new Error(`wrangler ${args.join(" ")}: no JSON in output`);
-  return JSON.parse(stdout.slice(start, end + 1)) as T;
-}
-
-async function resolveCloudflareAuth(): Promise<{ accountId: string; aiToken: string }> {
-  const who = await wranglerJson<{ loggedIn?: boolean; accounts?: { id: string; name: string }[] }>(
-    ["whoami", "--json"],
-  );
-  const accounts = who.accounts ?? [];
-  if (!who.loggedIn || accounts.length === 0) {
-    fail("not logged in to wrangler — run `wrangler login` (and unset CLOUDFLARE_API_TOKEN)");
-  }
-  let accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-  if (!accountId) {
-    if (accounts.length > 1) {
-      fail(
-        `wrangler login has ${accounts.length} accounts — set CLOUDFLARE_ACCOUNT_ID to choose one`,
-      );
-    }
-    accountId = accounts[0]?.id;
-  }
-  if (!accountId) fail("could not resolve a Cloudflare account id from `wrangler whoami`");
-  const auth = await wranglerJson<{ token?: string }>(["auth", "token", "--json"]);
-  if (!auth.token) fail("`wrangler auth token` returned no token — re-run `wrangler login`");
-  return { accountId, aiToken: auth.token };
-}
-
-async function d1Select<T>(sql: string): Promise<T[]> {
-  const stdout = await wrangler([
-    "d1",
-    "execute",
-    D1_DATABASE,
-    "--remote",
-    "--json",
-    "--command",
-    sql,
-  ]);
-  const start = stdout.indexOf("[");
-  const end = stdout.lastIndexOf("]");
-  if (start < 0 || end <= start) return [];
-  const parsed = JSON.parse(stdout.slice(start, end + 1)) as Array<{ results?: T[] }>;
-  return parsed[0]?.results ?? [];
-}
 
 // ── Workers AI REST text generation (one question per chunk) ───────────────────────────────────
 

@@ -21,6 +21,19 @@ describe("chunkText", () => {
     }
   });
 
+  it("carries `overlap` content between adjacent chunks (not just end-to-end tiling)", () => {
+    // Unique tokens so a shared token proves real overlap. A regression that set step = maxChars
+    // (zero overlap) would tile the chunks and share nothing — this catches that.
+    const text = Array.from({ length: 80 }, (_, i) => `t${i}`).join(" ");
+    const chunks = chunkText(text, { maxChars: 60, overlap: 18 });
+    expect(chunks.length).toBeGreaterThan(1);
+    for (let i = 0; i < chunks.length - 1; i++) {
+      const prev = new Set(chunks[i].split(/\s+/));
+      const shared = chunks[i + 1].split(/\s+/).filter((w) => w && prev.has(w));
+      expect(shared.length).toBeGreaterThan(0);
+    }
+  });
+
   it("rejects invalid options", () => {
     expect(() => chunkText("abc", { maxChars: 100, overlap: 100 })).toThrow();
     expect(() => chunkText("abc", { maxChars: 0 })).toThrow();
@@ -90,6 +103,27 @@ describe("chunkPages", () => {
     expect(chunks.length).toBeGreaterThan(1);
     for (const chunk of chunks) {
       expect(countTokens(chunk.text)).toBeLessThanOrEqual(20);
+    }
+  });
+
+  it("carries overlapTokens of content between adjacent chunks", async () => {
+    // The flush() carry path (buf = carry) is what implements overlapTokens; every other test forces
+    // overlapTokens: 0, so it is otherwise unexercised. Long unique words make each splitter piece a
+    // few tokens, so a chunk holds SEVERAL pieces and the trailing one is carried (the carry loop
+    // skips a single-piece buffer). A shared word then proves the carry ran; a regression that
+    // dropped it (buf = []) would share nothing.
+    const text = Array.from({ length: 60 }, (_, i) => `tokenword${i}`).join(" ");
+    const chunks = await chunkPages([{ pageNumber: 1, text }], {
+      countTokens,
+      targetTokens: 8,
+      maxTokens: 16,
+      overlapTokens: 2,
+    });
+    expect(chunks.length).toBeGreaterThan(1);
+    for (let i = 0; i < chunks.length - 1; i++) {
+      const prev = new Set(chunks[i].text.split(/\s+/));
+      const shared = chunks[i + 1].text.split(/\s+/).filter((w) => w && prev.has(w));
+      expect(shared.length).toBeGreaterThan(0);
     }
   });
 

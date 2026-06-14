@@ -3,10 +3,9 @@ import { Hono } from "hono";
 import { agentsMiddleware } from "hono-agents";
 import { createWorkersAI } from "workers-ai-provider";
 import { formatGrounding } from "./rag/context";
-import { GENERATION_MODEL } from "./rag/models";
+import { GEN_EVAL_MODELS, GENERATION_MODEL } from "./rag/models";
 import { buildRulesSystemPrompt } from "./rag/prompt";
-import { retrieve, retrieveCandidates } from "./rag/retrieve";
-import { synthesizeSpeech, TTS_MAX_CHARS } from "./tts";
+import { retrieve, retrieveDetailed } from "./rag/retrieve";
 
 // The DurableObject class must be a named export of the Worker's main module.
 export { RulesAgent } from "./agent";
@@ -27,24 +26,9 @@ app.use("/agents/*", async (c, next) => {
 
 app.get("/api/health", (c) => c.json({ ok: true }));
 
-// Read a goblin ruling aloud via ElevenLabs (key is a server secret). Rate-limited per IP since
-// each call spends real credits, and length-capped. Returns audio/mpeg; 502 on upstream failure.
-app.post("/api/tts", async (c) => {
-  const ip = c.req.header("cf-connecting-ip") ?? "unknown";
-  if (!(await c.env.TTS_LIMITER.limit({ key: ip })).success) {
-    return c.text("Too Many Requests", 429, { "Retry-After": "60" });
-  }
-  const body = await c.req.json<{ text?: string }>().catch(() => null);
-  const text = body?.text?.trim();
-  if (!text) return c.text("Missing text", 400);
-  if (text.length > TTS_MAX_CHARS) return c.text("Text too long", 400);
-  try {
-    return await synthesizeSpeech(c.env, text);
-  } catch (err) {
-    console.error("[tts]", err);
-    return c.text("TTS unavailable", 502);
-  }
-});
+// Goblin TTS is NOT an HTTP route: it is the RulesAgent `speak` @callable, reachable only over the
+// authenticated agent WebSocket (so the ElevenLabs key can't be driven by arbitrary callers, and
+// only a ruling the session actually produced can be voiced). See src/server/agent.ts + ADR 0006.
 
 // ── Eval harness (GAP 2, ADR 0007) — operator-only, secret-gated ─────────────────────────────
 // These routes reuse the REAL retrieve() so the eval measures the production pipeline (DRY +
@@ -72,14 +56,14 @@ app.post("/api/eval/retrieve", async (c) => {
   const query = body?.query?.trim();
   if (!gameId || !query) return c.text("Missing gameId or query", 400);
   const mode = body?.mode === "dense" ? "dense" : "hybrid";
-  const [final, candidates] = await Promise.all([
-    retrieve(c.env, query, { gameId, mode }),
-    retrieveCandidates(c.env, query, { gameId, mode }),
-  ]);
+  // One call → both the post-rerank `final` and the pre-rerank `candidates` window from a single
+  // embed + Vectorize query (retrieveDetailed), instead of running retrieve() and retrieveCandidates()
+  // side by side (which would embed + query twice for the same input).
+  const { passages, candidateIds } = await retrieveDetailed(c.env, query, { gameId, mode });
   return c.json({
-    final: final.map((p) => p.chunk.id),
-    scores: final.map((p) => p.score),
-    candidates: candidates.ids,
+    final: passages.map((p) => p.chunk.id),
+    scores: passages.map((p) => p.score),
+    candidates: candidateIds,
   });
 });
 
@@ -95,6 +79,11 @@ app.post("/api/eval/answer", async (c) => {
   const query = body?.query?.trim();
   if (!gameId || !query) return c.text("Missing gameId or query", 400);
   const model = body?.model?.trim() || GENERATION_MODEL;
+  // Lock to the eval allowlist (GENERATION_MODEL is its first entry): an operator with the secret
+  // can't drive arbitrary, costlier Workers AI models through this endpoint.
+  if (!(GEN_EVAL_MODELS as readonly string[]).includes(model)) {
+    return c.text("Unknown model", 400);
+  }
 
   const passages = await retrieve(c.env, query, { gameId });
   if (passages.length === 0) {

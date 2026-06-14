@@ -8,17 +8,20 @@ import {
 } from "ai";
 import { sql } from "drizzle-orm";
 import { createWorkersAI } from "workers-ai-provider";
-import type { Citation, RulesAgentState, RulesUIMessage } from "../shared/types";
+import type { RulesAgentState, RulesUIMessage, SpeakResult } from "../shared/types";
+import { retrieveWithFollowup, speakableText, toCitations } from "./agent-core";
 import { db } from "./db";
-import { dailyUsage, games } from "./db/schema";
+import { dailyUsage, games, ttsDailyUsage } from "./db/schema";
 import { formatGrounding, userTexts } from "./rag/context";
 import { GENERATION_MODEL } from "./rag/models";
 import { buildRulesSystemPrompt } from "./rag/prompt";
 import { retrieve } from "./rag/retrieve";
+import { synthesizeSpeech, TTS_MAX_CHARS } from "./tts";
 
 // Cost / abuse guardrails (public, no-login). See wrangler.jsonc `ratelimits` + migrations/0003.
 const MAX_OUTPUT_TOKENS = 600; // output tokens cost ~8x input on Llama 70B — cap the worst case.
 const DAILY_BUDGET = 5000; // max LLM-answered queries per UTC day before the goblin "naps".
+const TTS_DAILY_BUDGET = 500; // max voiced rulings per UTC day — global ElevenLabs credit breaker.
 const INACTIVITY_TTL_SECONDS = 4 * 60 * 60; // wipe an idle session's DO after this (PII hygiene).
 const EXPIRE_CALLBACK = "expireSession";
 
@@ -50,6 +53,48 @@ export class RulesAgent extends AIChatAgent<Env, RulesAgentState> {
         .orderBy(games.name);
     } catch {
       return [];
+    }
+  }
+
+  /**
+   * Read one of this Session's rulings aloud (goblin TTS). Invoked via `agent.stub.speak(id)` over
+   * the authenticated agent WebSocket — there is NO public TTS route, so the ElevenLabs key can't be
+   * driven by arbitrary callers. Defence in depth: it can only voice a ruling THIS session actually
+   * produced (looked up by message id, never free-text from the client), is per-session rate-limited,
+   * and is bounded by a global daily credit cap. Returns the MP3 as base64, or an in-character reason.
+   */
+  @callable()
+  async speak(messageId: string): Promise<SpeakResult> {
+    await this.resetExpiry();
+    // Per-session burst limit (same binding the chat path uses), keyed by the session id.
+    if (!(await this.env.TTS_LIMITER.limit({ key: this.name })).success) {
+      return { ok: false, reason: TOO_FAST };
+    }
+    // Only voice a ruling the goblin actually gave in this Session — resolve text server-side.
+    const message = this.messages.find((m) => m.id === messageId && m.role === "assistant");
+    if (!message) return { ok: false, reason: "That ruling has wandered off the page." };
+    const text = speakableText(message).slice(0, TTS_MAX_CHARS);
+    if (!text) return { ok: false, reason: "There is nothing here to read aloud." };
+
+    // Global daily cap on TTS credit spend — the per-colo limiter can't bound a daily total. Mirror
+    // the chat budget's atomic UPSERT; increment before the upstream call so a capped request is free.
+    const [usage] = await db(this.env)
+      .insert(ttsDailyUsage)
+      .values({ day: sql`date('now')`, count: 1 })
+      .onConflictDoUpdate({
+        target: ttsDailyUsage.day,
+        set: { count: sql`${ttsDailyUsage.count} + 1` },
+      })
+      .returning({ count: ttsDailyUsage.count });
+    if (usage && usage.count > TTS_DAILY_BUDGET) {
+      return { ok: false, reason: "The goblin has lost its voice for the day." };
+    }
+
+    try {
+      return { ok: true, audio: await synthesizeSpeech(this.env, text) };
+    } catch (err) {
+      console.error("[tts]", err);
+      return { ok: false, reason: "The goblin's voice cracked — try again." };
     }
   }
 
@@ -108,15 +153,19 @@ export class RulesAgent extends AIChatAgent<Env, RulesAgentState> {
     // Retrieve against the latest question. A terse follow-up ("what about 4 players?") embeds
     // poorly on its own and would fall through to the out-of-scope refusal below even though the
     // conversation is on-topic — so when the latest message alone finds nothing, retry with the
-    // prior user turn folded in to bring the established subject back into scope.
+    // last query that ACTUALLY grounded folded in. We track that query in DO state rather than
+    // using the previous user turn, because NOT_COVERED refusals persist as turns too, so the
+    // previous turn may itself be off-topic (and folding it in would drag a stale subject in).
     const texts = userTexts(this.messages);
     const latest = texts.at(-1) ?? "";
-    const prior = texts.at(-2);
-    let passages = await retrieve(this.env, latest, { gameId: this.state.activeGameId });
-    if (passages.length === 0 && prior) {
-      passages = await retrieve(this.env, `${prior}\n${latest}`, {
-        gameId: this.state.activeGameId,
-      });
+    const gameId = this.state.activeGameId;
+    const { passages, groundedQuery } = await retrieveWithFollowup(
+      (q) => retrieve(this.env, q, { gameId }),
+      latest,
+      this.state.lastGroundedQuery,
+    );
+    if (groundedQuery !== this.state.lastGroundedQuery) {
+      this.setState({ ...this.state, lastGroundedQuery: groundedQuery });
     }
 
     // (2) Out-of-scope short-circuit — nothing cleared the grounding floor, so answer in
@@ -145,17 +194,7 @@ export class RulesAgent extends AIChatAgent<Env, RulesAgentState> {
     const grounding = formatGrounding(passages);
     const gameName = passages[0]?.gameName ?? "this game";
 
-    const citations: Citation[] = passages.map((p) => ({
-      chunkId: p.chunk.id,
-      documentId: p.chunk.documentId,
-      gameName: p.gameName,
-      documentTitle: p.documentTitle,
-      ordinal: p.chunk.ordinal,
-      pageStart: p.chunk.pageStart,
-      pageEnd: p.chunk.pageEnd,
-      text: p.chunk.text,
-      score: p.score,
-    }));
+    const citations = toCitations(passages);
 
     const result = streamText({
       model: workersai(GENERATION_MODEL),

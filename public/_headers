@@ -1,0 +1,16 @@
+# Security response headers for the SPA + static assets (served by the Cloudflare assets binding).
+# This file does NOT affect `vite dev` (it ships only with the built assets), so HMR's inline
+# scripts are unaffected. The Worker routes (/api/*, /agents/*) return JSON/audio, not framed HTML,
+# so the clickjacking/XSS surface is the SPA HTML this covers.
+#
+# CSP is scoped to exactly what the app loads: same-origin hashed JS/CSS bundles; Google Fonts
+# (stylesheet from fonts.googleapis.com, font files from fonts.gstatic.com — see index.html);
+# data: URIs for the inline SVG noise background (styles.css); blob: audio for the goblin TTS
+# playback (useGoblinVoice.ts → new Audio(blobUrl)); and same-origin connect for the API + the
+# /agents/* WebSocket ('self' covers same-origin wss).
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), camera=(), microphone=()
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'

@@ -32,9 +32,9 @@ DO-alarm batch job (Cloudflare-native with retries, but adds infra and a PDF par
 
 **Consequences:**
 
-- The pipeline contract lives in `rag/ingest.ts` as a typed seam; the real orchestration is
-  `scripts/ingest.ts` (feature phase). The chunking/embedding helpers (`chunk.ts`, `embed.ts`)
-  are pure/Node-compatible and shared.
+- `scripts/ingest.ts` owns the full pipeline orchestration; the chunking/embedding helpers
+  (`chunk.ts`, `embed.ts`) are pure/Node-compatible and shared with the Worker, and the
+  shared wrangler/D1/auth plumbing lives in `scripts/lib/wrangler.ts`.
 - Ingestion is idempotent: re-onboarding a Game deletes its existing D1 chunks + Vectorize
   vectors (by `game_id`, `document_id`) before re-inserting, so a re-run replaces the index.
 - The operator needs an account API token with Workers AI + Vectorize write scope (the

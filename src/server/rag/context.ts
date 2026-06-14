@@ -62,14 +62,15 @@ export function reciprocalRankFusion(lists: string[][], k: number): string[] {
 /**
  * Make a user question safe to pass to an FTS5 `MATCH`. FTS5 treats bare words as operators
  * (AND/OR/NOT/NEAR) and reserves `* ^ : " ( )` for query syntax, so a raw question like
- * `how do I get "out"?` is a syntax error. We tokenise on whitespace, drop empties, wrap each
- * surviving token as a double-quoted string literal (doubling any internal quote), and OR-join
- * them. Quoting neutralises every operator — the token can never be parsed as syntax — and OR
+ * `how do I get "out"?` is a syntax error. We extract only letter/digit runs as tokens (so every
+ * reserved/operator character — quotes included — is dropped at the tokeniser, no escaping needed),
+ * wrap each as a double-quoted string literal, and OR-join them. Quoting neutralises any token that
+ * happens to spell an operator (AND/OR/NEAR) — it can't be parsed as syntax — and OR
  * (rather than FTS5's implicit AND) keeps lexical recall high for multi-word rules questions; the
  * reranker culls the false positives. Returns '' when no token survives (caller skips the FTS leg).
  */
 export function sanitizeFtsQuery(query: string): string {
   const tokens = query.match(/[\p{L}\p{N}]+/gu);
   if (!tokens) return "";
-  return tokens.map((token) => `"${token.replace(/"/g, '""')}"`).join(" OR ");
+  return tokens.map((token) => `"${token}"`).join(" OR ");
 }

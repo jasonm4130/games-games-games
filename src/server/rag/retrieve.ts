@@ -106,21 +106,27 @@ export async function retrieveCandidates(
 }
 
 /**
- * Retrieve the Chunks most relevant to a question, scoped to one Game. Builds the fused candidate
- * window (retrieveCandidates: dense ANN + lexical BM25 legs, floored + RRF-fused, GAP 1), hydrates
- * those (text + page span + Game name) from D1, reranks with bge-reranker-base, and keeps those
- * at/above RERANK_MIN_SCORE — the in-scope gate (ADR 0004) — in reranker order, returning [] if none
- * clear it (so the agent's free out-of-scope refusal still fires). `.score` on each result is the
+ * Retrieve the Chunks most relevant to a question, scoped to one Game, AND the fused candidate
+ * window they were selected from. Builds the fused candidate window (retrieveCandidates: dense ANN +
+ * lexical BM25 legs, floored + RRF-fused, GAP 1), hydrates those (text + page span + Game name) from
+ * D1, reranks with bge-reranker-base, and keeps those at/above RERANK_MIN_SCORE — the in-scope gate
+ * (ADR 0004) — in reranker order. Returns `{ passages, candidateIds }`: `passages` is empty (so the
+ * agent's free out-of-scope refusal still fires) when nothing clears the gate; `candidateIds` is the
+ * pre-rerank fused window in fused order (for the eval's Recall@20). `.score` on each passage is the
  * cosine score (0 for a lexical-only hit, which had no dense score), for Citation display.
+ *
+ * The eval's /api/eval/retrieve calls THIS once so it gets both the post-rerank `final` and the
+ * pre-rerank `candidates` from a single embed + Vectorize query, instead of running retrieve() and
+ * retrieveCandidates() side by side (which would embed + query twice for the same input).
  */
-export async function retrieve(
+export async function retrieveDetailed(
   env: Env,
   question: string,
   opts: RetrieveOptions = {},
-): Promise<RetrievedChunk[]> {
+): Promise<{ passages: RetrievedChunk[]; candidateIds: string[] }> {
   const query = question.trim();
   const { ids, cosineById } = await retrieveCandidates(env, query, opts);
-  if (ids.length === 0) return [];
+  if (ids.length === 0) return { passages: [], candidateIds: [] };
 
   const rows = await db(env)
     .select({
@@ -141,6 +147,7 @@ export async function retrieve(
 
   const byId = new Map(rows.map((row) => [row.id, row]));
 
+  // The fused window for the eval's Recall@20 is the candidate ids regardless of hydration outcome.
   // Build ordered survivors in fused (RRF) order; skip any id missing its D1 row.
   const survivors: RetrievedChunk[] = ids.flatMap((id) => {
     const row = byId.get(id);
@@ -164,7 +171,7 @@ export async function retrieve(
     ];
   });
 
-  if (survivors.length === 0) return [];
+  if (survivors.length === 0) return { passages: [], candidateIds: ids };
 
   // Rerank with a cross-encoder and gate on its relevance score. The reranker judges the
   // (query, passage) pair together, so it handles synonyms/paraphrase the embedding floor can't.
@@ -180,10 +187,23 @@ export async function retrieve(
     top_k: Math.min(RETRIEVAL_TOP_K, survivors.length),
   })) as { response: { id: number; score: number }[] };
 
-  return reranked.response
+  const passages = reranked.response
     .filter(({ score }) => score >= RERANK_MIN_SCORE)
     .flatMap(({ id }) => {
       const chunk = survivors[id];
       return chunk ? [chunk] : [];
     });
+  return { passages, candidateIds: ids };
+}
+
+/**
+ * Convenience wrapper returning just the reranked passages — the agent and /api/eval/answer don't
+ * need the candidate window. Delegates to retrieveDetailed so there is one retrieval implementation.
+ */
+export async function retrieve(
+  env: Env,
+  question: string,
+  opts: RetrieveOptions = {},
+): Promise<RetrievedChunk[]> {
+  return (await retrieveDetailed(env, question, opts)).passages;
 }

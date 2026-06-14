@@ -48,7 +48,9 @@ export default function App() {
     RulesUIMessage
   >({ agent });
 
-  const voice = useGoblinVoice();
+  // Goblin TTS rides the authenticated agent WebSocket (no public route): the hook calls the
+  // `speak` RPC, which returns the ruling's audio as base64 (or an in-character failure reason).
+  const voice = useGoblinVoice((id) => agent.stub.speak(id));
 
   const activeGameId = agent.state?.activeGameId;
   const isStreaming = status === "streaming" || status === "submitted";
@@ -107,6 +109,7 @@ export default function App() {
           onToggleSpeak={voice.toggle}
           speakingId={voice.speakingId}
           loadingId={voice.loadingId}
+          errorId={voice.errorId}
         />
       ) : (
         <Catalogue games={games} ready={loaded} onPick={enterGame} />

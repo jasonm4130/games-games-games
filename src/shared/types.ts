@@ -8,6 +8,11 @@ export type DocumentStatus = "pending" | "ingesting" | "ready" | "failed";
 export interface RulesAgentState {
   /** The Game the Session is scoped to; undefined until the user picks one (ADR 0004). */
   activeGameId: string | undefined;
+  /**
+   * The last user question that grounded on its own. Folded into a terse follow-up's retrieval so
+   * an anaphoric question ("what about 4 players?") stays in scope. Undefined until one grounds.
+   */
+  lastGroundedQuery?: string;
 }
 
 /** A Rulebook's role within its Game; errata overrides base rules (ADR 0004). */
@@ -102,3 +107,10 @@ export interface Citation {
  * streamed text, so the client can render verifiable Citation cards keyed to the [N] markers.
  */
 export type RulesUIMessage = UIMessage<never, { citations: Citation[] }>;
+
+/**
+ * Result of the RulesAgent `speak` RPC (goblin TTS). `audio` is the ruling's MP3 as a base64
+ * string (TTS rides the authenticated agent WebSocket, not a public route — see ADR 0006); on a
+ * rate-limit / daily-cap / synthesis failure, `reason` is an in-character message for the client.
+ */
+export type SpeakResult = { ok: true; audio: string } | { ok: false; reason: string };

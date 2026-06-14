@@ -13,8 +13,8 @@
   "routes": [{ "pattern": "games.jasonmatthew.dev", "custom_domain": true }],
 
   // The built React SPA is served as static assets. Requests to /agents/* (the
-  // RulesAgent) and /api/* (ingest/upload) hit the Worker first; everything else
-  // falls through to the SPA (client-side routing via single-page-application).
+  // RulesAgent; goblin TTS rides this channel too as an RPC) and /api/* (health, eval) hit
+  // the Worker first; everything else falls through to the SPA (single-page-application).
   "assets": {
     "directory": "./public",
     "not_found_handling": "single-page-application",

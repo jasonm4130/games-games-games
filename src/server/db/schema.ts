@@ -1,4 +1,4 @@
-// Drizzle schema — a typed mirror of migrations/0001-0004. The wrangler SQL migrations remain
+// Drizzle schema — a typed mirror of migrations/0001-0005. The wrangler SQL migrations remain
 // the source of truth for the database (applied to remote D1, owned alongside central infra,
 // ADR 0003); this file exists only to give the Worker-side queries types and a query builder.
 // Keep it in sync by hand when a migration changes a column. See src/server/db/index.ts.
@@ -51,6 +51,13 @@ export const chunks = sqliteTable("chunks", {
 });
 
 export const dailyUsage = sqliteTable("daily_usage", {
+  day: text("day").primaryKey(),
+  count: integer("count").notNull().default(0),
+});
+
+// Per-UTC-day cap on TTS (ElevenLabs) credit spend — the global breaker the per-IP/per-colo
+// TTS_LIMITER can't provide. Incremented per synthesised ruling in src/server/index.ts (migration 0005).
+export const ttsDailyUsage = sqliteTable("tts_daily_usage", {
   day: text("day").primaryKey(),
   count: integer("count").notNull().default(0),
 });

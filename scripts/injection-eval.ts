@@ -18,19 +18,21 @@
  *   EVAL_SECRET=… pnpm inject-eval [--attacks eval/attacks/goblin-attacks.json] [--base-url …]
  */
 
-import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
-import { parseArgs, promisify } from "node:util";
+import { parseArgs } from "node:util";
 import { GENERATION_MODEL } from "../src/server/rag/models";
+import {
+  CF_API,
+  d1Select,
+  EVAL_USER_AGENT,
+  fail,
+  requireEnv,
+  resolveCloudflareAuth,
+  sqlStr,
+} from "./lib/wrangler";
 
-const execFileP = promisify(execFile);
-
-const D1_DATABASE = "ggg-db";
 const DEFAULT_BASE_URL = "https://games.jasonmatthew.dev";
 const DEFAULT_ATTACKS = "eval/attacks/goblin-attacks.json";
-const CF_API = "https://api.cloudflare.com/client/v4";
-const EVAL_USER_AGENT =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
 interface Attack {
   id: string;
@@ -41,61 +43,6 @@ interface Attack {
   query: string;
 }
 
-function fail(message: string): never {
-  console.error(`✗ ${message}`);
-  process.exit(1);
-}
-
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) fail(`missing required env var ${name}`);
-  return value;
-}
-
-// ── wrangler shell-outs (read-only D1 + auth), same OAuth path as the other scripts ────────────
-
-async function wrangler(args: string[]): Promise<string> {
-  const env = { ...process.env };
-  delete env.CLOUDFLARE_API_TOKEN;
-  const { stdout } = await execFileP("pnpm", ["exec", "wrangler", ...args], {
-    env,
-    maxBuffer: 64 * 1024 * 1024,
-  });
-  return stdout;
-}
-
-async function wranglerJson<T>(args: string[]): Promise<T> {
-  const stdout = await wrangler(args);
-  const start = stdout.indexOf("{");
-  const end = stdout.lastIndexOf("}");
-  if (start < 0 || end <= start) throw new Error(`wrangler ${args.join(" ")}: no JSON in output`);
-  return JSON.parse(stdout.slice(start, end + 1)) as T;
-}
-
-async function resolveCloudflareAuth(): Promise<{ accountId: string; aiToken: string }> {
-  const who = await wranglerJson<{ loggedIn?: boolean; accounts?: { id: string }[] }>([
-    "whoami",
-    "--json",
-  ]);
-  const accounts = who.accounts ?? [];
-  if (!who.loggedIn || accounts.length === 0) {
-    fail("not logged in to wrangler — run `wrangler login` (and unset CLOUDFLARE_API_TOKEN)");
-  }
-  let accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-  if (!accountId) {
-    if (accounts.length > 1) fail("multiple accounts — set CLOUDFLARE_ACCOUNT_ID");
-    accountId = accounts[0]?.id;
-  }
-  if (!accountId) fail("could not resolve a Cloudflare account id");
-  const auth = await wranglerJson<{ token?: string }>(["auth", "token", "--json"]);
-  if (!auth.token) fail("`wrangler auth token` returned no token — re-run `wrangler login`");
-  return { accountId, aiToken: auth.token };
-}
-
-function sqlStr(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`;
-}
-
 const gameIdCache = new Map<string, string | null>();
 
 async function resolveGameId(game: string, edition?: string): Promise<string | null> {
@@ -103,19 +50,10 @@ async function resolveGameId(game: string, edition?: string): Promise<string | n
   const cached = gameIdCache.get(key);
   if (cached !== undefined) return cached;
   const editionSql = edition?.trim() ? sqlStr(edition.trim()) : "NULL";
-  const stdout = await wrangler([
-    "d1",
-    "execute",
-    D1_DATABASE,
-    "--remote",
-    "--json",
-    "--command",
+  const rows = await d1Select<{ id: string }>(
     `SELECT id FROM games WHERE name = ${sqlStr(game)} AND COALESCE(edition, '') = COALESCE(${editionSql}, '')`,
-  ]);
-  const s = stdout.indexOf("[");
-  const e = stdout.lastIndexOf("]");
-  const rows = s >= 0 && e > s ? (JSON.parse(stdout.slice(s, e + 1))[0]?.results ?? []) : [];
-  const id = (rows[0] as { id?: string } | undefined)?.id ?? null;
+  );
+  const id = rows[0]?.id ?? null;
   gameIdCache.set(key, id);
   return id;
 }
