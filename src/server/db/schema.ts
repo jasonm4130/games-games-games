@@ -47,6 +47,7 @@ export const chunks = sqliteTable("chunks", {
   pageStart: integer("page_start"),
   pageEnd: integer("page_end"),
   contextBlurb: text("context_blurb"),
+  headingPath: text("heading_path"),
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
 });
 
