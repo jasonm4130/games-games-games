@@ -11,6 +11,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { parseArgs } from "node:util";
 import { EMBEDDING_MODEL } from "../src/server/rag/models";
+import { fetchWithRetry } from "./lib/http";
 import { splitSections } from "./lib/markdown";
 import { charPreservationRatio, missingNumbers } from "./lib/preserve";
 import { fail, requireEnv, resolveCloudflareAuth, workersAiRun } from "./lib/wrangler";
@@ -42,7 +43,7 @@ async function cosineToRaw(
 // from the raw? Returns the verdict string ("FAITHFUL" or "FABRICATED: <added text>").
 const JUDGE_MODEL = "kimi-k2.7-code";
 async function judgeFaithful(raw: string, healed: string, apiKey: string): Promise<string> {
-  const res = await fetch("https://api.moonshot.ai/v1/chat/completions", {
+  const res = await fetchWithRetry("https://api.moonshot.ai/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({

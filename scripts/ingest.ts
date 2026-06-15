@@ -41,6 +41,7 @@ import { AutoTokenizer } from "@huggingface/transformers";
 import { chunkMarkdown } from "../src/server/rag/chunk";
 import { EMBEDDING_MODEL } from "../src/server/rag/models";
 import type { ChunkInput, DocumentKind } from "../src/shared/types";
+import { fetchWithRetry } from "./lib/http";
 import {
   D1_DATABASE,
   d1Select,
@@ -174,18 +175,24 @@ async function contextualBlurbs(documentText: string, chunks: ChunkInput[]): Pro
   const system = `You situate excerpts within a tabletop rulebook to improve retrieval. Given the document below and one chunk from it, reply with ONLY a 1-2 sentence blurb naming the rule/section the chunk belongs to. Do not restate the chunk.\n\n<document>\n${documentText}\n</document>`;
   const blurbs: string[] = [];
   for (const chunk of chunks) {
-    const response = await fetch(`${MOONSHOT_API}/chat/completions`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: CONTEXTUAL_MODEL,
-        max_completion_tokens: CONTEXTUAL_MAX_TOKENS,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: `<chunk>\n${chunk.text}\n</chunk>` },
-        ],
-      }),
-    });
+    // Moonshot returns 429 `engine_overloaded` under load; retry with backoff+jitter (extra attempts
+    // since a whole-corpus contextual run makes one call per chunk and overload can persist a while).
+    const response = await fetchWithRetry(
+      `${MOONSHOT_API}/chat/completions`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: CONTEXTUAL_MODEL,
+          max_completion_tokens: CONTEXTUAL_MAX_TOKENS,
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: `<chunk>\n${chunk.text}\n</chunk>` },
+          ],
+        }),
+      },
+      { label: "kimi contextual blurb", attempts: 8 },
+    );
     if (!response.ok) throw new Error(`Moonshot ${response.status}: ${await response.text()}`);
     const json = (await response.json()) as {
       choices: { message: { content: string } }[];
