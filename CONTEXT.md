@@ -17,7 +17,8 @@ _Avoid_: manual, instructions, PDF (the PDF is just one encoding of a Rulebook)
 
 **Chunk**:
 A retrievable segment of a Rulebook after splitting — the unit that is embedded and stored
-in Vectorize, and whose text is kept in D1 for citing.
+in Vectorize, and whose text is kept in D1 for citing. A Chunk carries the section heading
+path it was split under (`headingPath`); page numbers are absent for markdown-sourced Chunks.
 _Avoid_: fragment, passage, segment, section
 
 **Ruling**:
@@ -27,7 +28,8 @@ _Avoid_: response, result, answer
 
 **Citation**:
 A reference from a Ruling back to the specific Chunk(s) that support it, so a user can
-verify the Ruling against the Rulebook.
+verify the Ruling against the Rulebook. A Citation anchors on the Chunk's section heading,
+falling back to page numbers only for any PDF-era Chunks.
 _Avoid_: source, reference, link
 
 **Ingestion**:
