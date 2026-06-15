@@ -1,11 +1,12 @@
 /**
  * Operator ingestion — onboard a Rulebook PDF (already uploaded to R2) into the index.
  *
- * This is an OPERATOR-SIDE Node script (ADR 0005), NOT a Worker route: a Worker's
- * 128 MB / 30 s ceiling can't parse a large PDF or download tokenizer weights. The pipeline:
+ * This is an OPERATOR-SIDE Node script (ADR 0005), NOT a Worker route: a Worker's 128 MB / 30 s
+ * ceiling can't download the tokenizer weights or run hundreds of embed calls. The PDF->markdown
+ * conversion happens offline first (Docling + heal, ADR 0008); this script ingests that markdown:
  *
- *   R2 PDF  ->  per-page text (pdfjs-dist)  ->  token-budgeted chunks (chunkPages, shared
- *   with the Worker)  ->  [optional contextual blurb via Kimi k2.7]  ->  bge-m3 embeddings
+ *   healed markdown (--md-path)  ->  heading-bounded chunks (chunkMarkdown, shared with the
+ *   Worker)  ->  [optional contextual blurb via Kimi k2.7]  ->  bge-m3 embeddings
  *   (Workers AI REST)  ->  Vectorize upsert (metadata {game_id, document_id})  +  D1 chunk rows.
  *
  * It is IDEMPOTENT: re-running for the same (game, r2-key) replaces that document's chunks.
@@ -41,13 +42,14 @@ import { chunkMarkdown } from "../src/server/rag/chunk";
 import { EMBEDDING_MODEL } from "../src/server/rag/models";
 import type { ChunkInput, DocumentKind } from "../src/shared/types";
 import {
-  CF_API,
   D1_DATABASE,
   d1Select,
   fail,
   requireEnv,
   resolveCloudflareAuth,
+  resolveGameId,
   sqlStr,
+  workersAiRun,
   wrangler,
 } from "./lib/wrangler";
 
@@ -57,7 +59,7 @@ const EMBED_BATCH = 100; // Workers AI bge-m3 caps simple-embedding input at 100
 // tokenizer we count with undercounts vs Workers AI's server-side count by ~2.5x (53 contextual
 // chunks measured ~33k local but 82680 server), so keep the local budget well below 60000/2.5.
 const EMBED_MAX_TOKENS = 15000;
-const DELETE_BATCH = 1000; // ids per `wrangler vectorize delete-vectors --ids` call (argv-length safety).
+const DELETE_BATCH = 100; // Vectorize delete_by_ids caps at 100 ids per request (REST error 40007).
 const CONTEXTUAL_MODEL = "kimi-k2.7-code";
 const CONTEXTUAL_MAX_TOKENS = 1024; // headroom: k2.7 thinks before emitting the 1-2 sentence blurb.
 const MOONSHOT_API = "https://api.moonshot.ai/v1";
@@ -92,17 +94,11 @@ async function embedBatch(
   accountId: string,
   aiToken: string,
 ): Promise<number[][]> {
-  const response = await fetch(`${CF_API}/accounts/${accountId}/ai/run/${EMBEDDING_MODEL}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${aiToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ text: texts }),
-  });
-  if (!response.ok) throw new Error(`Workers AI ${response.status}: ${await response.text()}`);
-  const json = (await response.json()) as {
+  const json = await workersAiRun<{
     result: { data: number[][] };
     success: boolean;
     errors: unknown[];
-  };
+  }>(EMBEDDING_MODEL, { text: texts }, { accountId, aiToken });
   if (!json.success) throw new Error(`Workers AI: ${JSON.stringify(json.errors)}`);
   return json.result.data;
 }
@@ -227,17 +223,15 @@ async function main(): Promise<void> {
 
   const { accountId, aiToken } = await resolveCloudflareAuth();
 
-  // Resolve the Game. INSERT OR IGNORE keeps an existing row (identity is name+edition); the
-  // following SELECT returns the canonical id whether we just inserted it or it pre-existed.
+  // Resolve the Game. INSERT OR IGNORE keeps an existing row (identity is name+edition); resolveGameId
+  // then returns the canonical id whether we just inserted it or it pre-existed.
   const newGameId = randomUUID();
   const editionSql = edition === null ? "NULL" : sqlStr(edition);
   await d1Run(
     `INSERT OR IGNORE INTO games (id, name, edition) VALUES (${sqlStr(newGameId)}, ${sqlStr(game)}, ${editionSql})`,
   );
-  const gameRows = await d1Select<{ id: string }>(
-    `SELECT id FROM games WHERE name = ${sqlStr(game)} AND COALESCE(edition, '') = COALESCE(${editionSql}, '')`,
-  );
-  const gameId = gameRows[0]?.id ?? fail("could not resolve the Game id");
+  const gameId =
+    (await resolveGameId(game, edition ?? undefined)) ?? fail("could not resolve the Game id");
 
   // Resolve the Document by its identity (game_id, r2_key) — the source file. INSERT OR IGNORE
   // against the unique index (migration 0002) is safe from duplicate rows even under a concurrent

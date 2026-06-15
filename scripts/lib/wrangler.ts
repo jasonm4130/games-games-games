@@ -80,6 +80,47 @@ export async function d1Select<T>(sql: string): Promise<T[]> {
   return parsed[0]?.results ?? [];
 }
 
+// Resolve a Game's id by its identity (name + edition) once and memoize it — callers that resolve
+// the same Game across many rows (eval, injection-eval) hit D1 only once per Game.
+const gameIdCache = new Map<string, string | null>();
+
+/**
+ * Resolve a Game's id by its identity (name + edition, NULL↔'' coalesced like the games identity
+ * index), or null if it isn't in the Catalogue. Read-only. Shared by every operator script so the
+ * identity query lives in exactly one place.
+ */
+export async function resolveGameId(game: string, edition?: string): Promise<string | null> {
+  const key = `${game} ${edition ?? ""}`;
+  const cached = gameIdCache.get(key);
+  if (cached !== undefined) return cached;
+  const editionSql = edition?.trim() ? sqlStr(edition.trim()) : "NULL";
+  const rows = await d1Select<{ id: string }>(
+    `SELECT id FROM games WHERE name = ${sqlStr(game)} AND COALESCE(edition, '') = COALESCE(${editionSql}, '')`,
+  );
+  const id = rows[0]?.id ?? null;
+  gameIdCache.set(key, id);
+  return id;
+}
+
+/**
+ * POST to the Workers AI REST API (/accounts/:id/ai/run/:model) with the resolved bearer and return
+ * the parsed JSON typed as T. Centralizes the URL + auth header + ok-check shared by the embedding
+ * and text-generation call sites; each caller narrows T to its model's own result shape.
+ */
+export async function workersAiRun<T>(
+  model: string,
+  input: Record<string, unknown>,
+  auth: { accountId: string; aiToken: string },
+): Promise<T> {
+  const res = await fetch(`${CF_API}/accounts/${auth.accountId}/ai/run/${model}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${auth.aiToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Workers AI ${model} ${res.status}: ${await res.text()}`);
+  return (await res.json()) as T;
+}
+
 /**
  * Resolve the account id + a REST bearer (for Workers AI /ai/run) from your wrangler session:
  * `wrangler whoami` for the account, `wrangler auth token` for the bearer (a valid, auto-refreshed

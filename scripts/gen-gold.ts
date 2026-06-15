@@ -19,7 +19,14 @@
 import { writeFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
 import { GENERATION_MODEL } from "../src/server/rag/models";
-import { CF_API, d1Select, fail, resolveCloudflareAuth, sqlStr } from "./lib/wrangler";
+import {
+  d1Select,
+  fail,
+  resolveCloudflareAuth,
+  resolveGameId,
+  sqlStr,
+  workersAiRun,
+} from "./lib/wrangler";
 
 const DEFAULT_MAX = 8;
 const GEN_MAX_TOKENS = 200;
@@ -31,10 +38,9 @@ async function proposeQuestion(
   accountId: string,
   aiToken: string,
 ): Promise<string> {
-  const response = await fetch(`${CF_API}/accounts/${accountId}/ai/run/${GENERATION_MODEL}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${aiToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
+  const json = await workersAiRun<{ result?: { response?: string }; success: boolean }>(
+    GENERATION_MODEL,
+    {
       max_tokens: GEN_MAX_TOKENS,
       messages: [
         {
@@ -44,10 +50,9 @@ async function proposeQuestion(
         },
         { role: "user", content: chunkText },
       ],
-    }),
-  });
-  if (!response.ok) throw new Error(`Workers AI ${response.status}: ${await response.text()}`);
-  const json = (await response.json()) as { result?: { response?: string }; success: boolean };
+    },
+    { accountId, aiToken },
+  );
   if (!json.success) throw new Error("Workers AI generation failed");
   return (json.result?.response ?? "").trim().replace(/^["']|["']$/g, "");
 }
@@ -71,11 +76,9 @@ async function main(): Promise<void> {
 
   const { accountId, aiToken } = await resolveCloudflareAuth();
 
-  const editionSql = edition ? sqlStr(edition) : "NULL";
-  const gameRows = await d1Select<{ id: string }>(
-    `SELECT id FROM games WHERE name = ${sqlStr(game)} AND COALESCE(edition, '') = COALESCE(${editionSql}, '')`,
-  );
-  const gameId = gameRows[0]?.id ?? fail(`Game "${game}" not found in the Catalogue`);
+  const gameId =
+    (await resolveGameId(game, edition ?? undefined)) ??
+    fail(`Game "${game}" not found in the Catalogue`);
 
   // Read-only: a sample of the Game's chunks, longest first (longer chunks carry richer rules).
   const chunks = await d1Select<{ id: string; text: string }>(
