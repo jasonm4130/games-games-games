@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript template-string prompt; Vitest (Workers pool) unit tests; `scripts/inject-eval.ts` + `scripts/eval.ts` (secret-gated `/api/eval/*` endpoints) for the network gates; Cloudflare Workers (llama-3.3-70b generator + judge).
 
-**Status: QUEUED — designed and adversarially verified by workflow `wf_8457bae4-b19`; NOT yet applied. The working tree is clean (the candidate was reverted). Execution applies the change, runs the 3 gates, then commits + deploys on approval.**
+**Status: ✅ EXECUTED & DEPLOYED 2026-06-15 (commit `716126b`, prod version `d20b9128`).** All three gates passed: Gate 1 — `pnpm check` clean + 100/100 tests; Gate 2 — `inject-eval` **13/13 on two local-first runs** (all four targets flipped, no category regression); Gate 3 — gen-eval citation validity **95.1% → 97.6%**, answered 41/42 unchanged. Post-deploy `inject-eval` against prod re-confirmed **13/13**. Follow-up (hostile-chunk fixture for ATK-05/06/15) remains open — see below.
 
 ---
 
