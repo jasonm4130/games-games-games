@@ -23,6 +23,7 @@ function passage(overrides: Partial<RetrievedChunk> = {}): RetrievedChunk {
       text: "the rule text",
       pageStart: 1,
       pageEnd: 1,
+      headingPath: null,
     },
     gameName: "The Quacks of Quedlinburg",
     documentTitle: "Base Game",
@@ -71,6 +72,7 @@ describe("formatGrounding", () => {
           text: "base rule",
           pageStart: 1,
           pageEnd: 1,
+          headingPath: null,
         },
       }),
     ]);
@@ -87,6 +89,7 @@ describe("formatGrounding", () => {
           text: "base rule",
           pageStart: 1,
           pageEnd: 1,
+          headingPath: null,
         },
       }),
       passage({
@@ -99,6 +102,7 @@ describe("formatGrounding", () => {
           text: "witch rule",
           pageStart: 2,
           pageEnd: 2,
+          headingPath: null,
         },
       }),
     ]);

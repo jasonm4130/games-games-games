@@ -23,6 +23,12 @@ export function pageLabel(citation: Citation): string {
   return `p.${citation.pageStart}`;
 }
 
+/** Source label for a Citation: the section heading when known, else the page label. */
+export function sourceLabel(citation: Citation): string {
+  if (citation.headingPath) return `§ ${citation.headingPath}`;
+  return pageLabel(citation);
+}
+
 /**
  * A stable accent colour for a Game, derived from its id. Every Game reads as its own hue
  * (consumed as the `--game-accent` CSS var) with zero per-game assets — so the chat and its

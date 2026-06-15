@@ -79,7 +79,10 @@ export interface ChunkInput {
 
 /** A Chunk returned from Retrieval, with its similarity score. */
 export interface RetrievedChunk {
-  chunk: Pick<Chunk, "id" | "documentId" | "ordinal" | "text" | "pageStart" | "pageEnd" | "headingPath">;
+  chunk: Pick<
+    Chunk,
+    "id" | "documentId" | "ordinal" | "text" | "pageStart" | "pageEnd" | "headingPath"
+  >;
   /** Name of the Game the chunk belongs to (retrieval is Game-scoped) — for Citations. */
   gameName: string;
   /** Title of the source Rulebook (Document) — disambiguates which book within a Game. */
