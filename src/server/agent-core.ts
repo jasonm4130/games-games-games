@@ -20,6 +20,7 @@ export function toCitations(passages: RetrievedChunk[]): Citation[] {
     ordinal: p.chunk.ordinal,
     pageStart: p.chunk.pageStart,
     pageEnd: p.chunk.pageEnd,
+    headingPath: p.chunk.headingPath,
     text: p.chunk.text,
     score: p.score,
   }));

@@ -1,7 +1,7 @@
 import { type CSSProperties, type FormEvent, useEffect, useRef, useState } from "react";
 import type { Citation, RulesUIMessage } from "../shared/types";
 import { GoblinMark } from "./GoblinMark";
-import { accentFor, citationsOf, pageLabel, textOf } from "./theme";
+import { accentFor, citationsOf, sourceLabel, textOf } from "./theme";
 
 interface Game {
   id: string;
@@ -116,7 +116,7 @@ export function Chat({
                   {cites.length > 0 ? (
                     <div className="cite-row">
                       {cites.map((citation, i) => {
-                        const page = pageLabel(citation);
+                        const page = sourceLabel(citation);
                         return (
                           <button
                             key={citation.chunkId}

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { Citation } from "../shared/types";
 import { GoblinMark } from "./GoblinMark";
-import { pageLabel } from "./theme";
+import { sourceLabel } from "./theme";
 
 interface Props {
   citation: Citation;
@@ -36,7 +36,7 @@ export function CitationModal({ citation, n, onClose }: Props) {
     };
   }, [onClose]);
 
-  const page = pageLabel(citation);
+  const page = sourceLabel(citation);
 
   return (
     <div className="cite-modal__wrap">
