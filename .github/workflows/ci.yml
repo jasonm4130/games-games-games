@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Biome (lint + format) + tsc typecheck.
+      - run: pnpm check
+      # Vitest on the Cloudflare Workers pool.
+      - run: pnpm test
+      # `pnpm build` is intentionally omitted: it needs live Cloudflare bindings (Vectorize, D1).

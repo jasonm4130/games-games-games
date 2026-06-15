@@ -1,0 +1,14 @@
+# Copy to `.dev.vars` (gitignored) and fill in. All are optional for a basic `pnpm dev` — the app
+# runs without them; the listed features just stay off until the matching value is set.
+
+# Goblin TTS voice (ElevenLabs). Omit to disable the spoken-ruling feature.
+ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
+
+# Gates the eval endpoints (POST /api/eval/*, ADR 0007). When unset they 404 (invisible). In prod set
+# it with `wrangler secret put EVAL_SECRET`; the operator scripts (pnpm eval / inject-eval) read the
+# same value from this env var. Any high-entropy string.
+EVAL_SECRET=any_high_entropy_string
+
+# Only needed for the operator ingestion path: `pnpm ingest --contextual` (Contextual Retrieval
+# blurbs) and the offline heal/validate scripts. Moonshot Kimi key. Not needed to run the app.
+MOONSHOT_API_KEY=your_moonshot_api_key_here
