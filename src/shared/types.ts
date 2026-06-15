@@ -26,6 +26,9 @@ export interface Game {
   createdAt: string;
 }
 
+/** The Catalogue-facing subset of a Game sent to the client (no internal timestamps). */
+export type GameSummary = Pick<Game, "id" | "name" | "edition">;
+
 /** A source document describing a Game's rules, stored in R2. */
 export interface RulebookDocument {
   id: string;
@@ -56,12 +59,6 @@ export interface Chunk {
   contextBlurb: string | null;
   headingPath: string | null;
   createdAt: string;
-}
-
-/** One page of extracted rulebook text — the input to chunking. */
-export interface PageText {
-  pageNumber: number;
-  text: string;
 }
 
 /**
