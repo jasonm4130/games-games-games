@@ -11,10 +11,20 @@
 # static.cloudflareinsights.com beacon + its cloudflareinsights.com data POST).
 #
 # script-src is deliberately strict (no 'unsafe-inline'): the app ships no first-party inline
-# scripts. Cloudflare "JS Detections" injects a per-request inline bootstrap (unhashable) that this
-# CSP blocks BY DESIGN — that feature is disabled at the zone (Security → Settings) so it isn't
-# injected. If you re-enable JS Detections you must either add 'unsafe-inline' here or accept the
-# console block.
+# scripts and renders every RAG answer/citation as escaped React text (no dangerouslySetInnerHTML,
+# no markdown→HTML), so this is defense-in-depth against a *future* injection sink, not the primary
+# XSS control. It costs nothing here (same-origin hashed bundles) and avoids the grade Mozilla
+# Observatory docks for 'unsafe-inline' in script-src.
+#
+# Cloudflare Bot Fight Mode (on at the zone) injects a per-request inline bootstrap loading
+# /cdn-cgi/challenge-platform/scripts/jsd/main.js (JS Detections). Its r/t params change every
+# request, so it is UNHASHABLE, and this CSP blocks it BY DESIGN — one benign console error. That
+# is harmless: on the free plan JS Detections is a passive fingerprint signal Cloudflare never
+# enforces on (enforcement needs Enterprise Bot Management), and BFM's actual protection is an edge
+# CPU-challenge that runs before the Worker regardless. Free BFM cannot disable JS Detections, so the
+# only ways to silence the console are a per-request nonce (CSP moved into the Worker, which then
+# stamps the same nonce onto Cloudflare's injected script) or 'unsafe-inline' (NO — it reopens the
+# inline-script XSS class). We accept the cosmetic console error and keep the strict policy.
 /*
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
