@@ -1,16 +1,10 @@
 import { type CSSProperties, type FormEvent, useEffect, useRef, useState } from "react";
-import type { Citation, RulesUIMessage } from "../shared/types";
+import type { Citation, GameSummary, RulesUIMessage } from "../shared/types";
 import { GoblinMark } from "./GoblinMark";
 import { accentFor, citationsOf, sourceLabel, textOf } from "./theme";
 
-interface Game {
-  id: string;
-  name: string;
-  edition: string | null;
-}
-
 interface Props {
-  game: Game;
+  game: GameSummary;
   messages: RulesUIMessage[];
   isStreaming: boolean;
   onSend: (text: string) => void;

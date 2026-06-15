@@ -88,6 +88,10 @@ dir — account-level resources live in the central repo.
 | `pnpm types` | regenerate `env.d.ts` from `wrangler.jsonc` |
 | `pnpm check` | Biome + `tsc` (lint, format-check, typecheck) |
 | `pnpm test` | Vitest (Workers pool) |
+| `pnpm ingest` | operator ingestion — index a rulebook's markdown (`--md-path`, ADR 0008) |
+| `pnpm eval` | retrieval (+ optional `--gen`) eval against a gold set |
+| `pnpm gen-gold` | draft gold-set questions for a game |
+| `pnpm inject-eval` | prompt-injection eval (LLM-judged) |
 | `scripts/provision.sh` | App-side: wire D1 id + apply D1 migration (resources come from `../jasonm4130-cf`) |
 
 ## The grill-with-docs skill
