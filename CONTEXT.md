@@ -13,7 +13,7 @@ _Avoid_: title, product
 **Rulebook**:
 A source document describing a Game's rules. One Game may have several (base rules,
 expansions, errata). Stored in R2 as the source file an operator onboards.
-_Avoid_: manual, instructions, PDF (the PDF is just one encoding of a Rulebook)
+_Avoid_: manual, instructions, PDF (the operator-onboarded source is healed markdown — ADR 0008 — not the raw PDF)
 
 **Chunk**:
 A retrievable segment of a Rulebook after splitting — the unit that is embedded and stored
@@ -63,8 +63,10 @@ _Avoid_: upload, import, signup
 
 **Gold set**:
 A curated list of rules questions paired with the Chunk(s) that should answer each — the
-ground truth the Eval scores Retrieval against. Catalogue-wide and verified against live D1
-(`eval/gold/catalogue.json`): every row's `expectedChunkIds` must exist for the right Game.
+ground truth the Eval scores Retrieval against. Catalogue-wide (`eval/gold/catalogue.json`).
+Each row anchors on `expectedTextIncludes` — whitespace-normalized substrings of the answering
+Chunk's text — which the Eval re-resolves to live Chunk ids per Game, so a seed survives chunk-id
+churn and line-break reflow on re-ingest (a pinned `expectedChunkIds` is an optional override).
 _Avoid_: test set, fixtures, benchmark
 
 **Eval**:

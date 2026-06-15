@@ -38,6 +38,11 @@ export const CHUNK_TARGET_TOKENS = 512;
 export const CHUNK_MAX_TOKENS = 1024;
 export const CHUNK_OVERLAP_TOKENS = 50;
 export const TABLE_MAX_TOKENS = 1500;
+// Drop markdown chunks whose body is shorter than this — Docling emits spurious headings over page
+// furniture (page numbers "5 of 5", card labels "back", component counts, designer credits), which
+// otherwise become near-empty chunks that pollute retrieval. Set below the shortest real rule line
+// (~26 chars observed across the corpus) so genuine terse content is never dropped.
+export const MIN_CHUNK_CHARS = 20;
 
 /**
  * Permissive noise bound on the raw bge-m3 cosine score. Drop clear garbage cheaply before the

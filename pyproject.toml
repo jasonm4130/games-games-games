@@ -12,6 +12,11 @@ dependencies = [
 # Marker is the escalation converter (vision-LLM via --use_llm); heavy + GPL, install on demand:
 #   uv pip install -e ".[escalation]"
 escalation = ["marker-pdf>=1.10.2"]
+# Test deps for the deterministic clean.py logic (no docling needed): uv pip install -e ".[test]"
+test = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["scripts/lib"]
 
 [tool.setuptools]
 # This project ships NO Python package — it only pins the operator-side conversion deps; the

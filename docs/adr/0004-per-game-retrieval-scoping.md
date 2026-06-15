@@ -30,5 +30,5 @@ any rulebook is indexed, and it has to be settled before Ingestion is implemente
 - `retrieve(env, question, { gameId })` returns `[]` when no Game is active — nothing to
   search. Matches below `RETRIEVAL_MIN_SCORE` are dropped so weak passages don't ground a
   Ruling.
-- `activeGameId` on the agent must persist across Durable Object hibernation (feature-phase
-  TODO) and be set by a client Game picker.
+- `activeGameId` on the agent persists across Durable Object hibernation via `this.setState()`
+  (DO SQLite-backed state) and is set by the client Game picker (`agent.stub.selectGame(id)`).
