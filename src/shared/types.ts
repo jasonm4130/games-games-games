@@ -54,6 +54,7 @@ export interface Chunk {
   pageEnd: number | null;
   /** Contextual-retrieval blurb; prepended to `text` at embed time only. */
   contextBlurb: string | null;
+  headingPath: string | null;
   createdAt: string;
 }
 
@@ -70,15 +71,15 @@ export interface PageText {
 export interface ChunkInput {
   text: string;
   embedText: string;
-  pageStart: number;
-  pageEnd: number;
+  pageStart: number | null;
+  pageEnd: number | null;
   headingPath: string | null;
   isTable: boolean;
 }
 
 /** A Chunk returned from Retrieval, with its similarity score. */
 export interface RetrievedChunk {
-  chunk: Pick<Chunk, "id" | "documentId" | "ordinal" | "text" | "pageStart" | "pageEnd">;
+  chunk: Pick<Chunk, "id" | "documentId" | "ordinal" | "text" | "pageStart" | "pageEnd" | "headingPath">;
   /** Name of the Game the chunk belongs to (retrieval is Game-scoped) — for Citations. */
   gameName: string;
   /** Title of the source Rulebook (Document) — disambiguates which book within a Game. */
@@ -98,6 +99,7 @@ export interface Citation {
   ordinal: number;
   pageStart: number | null;
   pageEnd: number | null;
+  headingPath: string | null;
   text: string;
   score: number;
 }
