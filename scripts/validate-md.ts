@@ -63,7 +63,9 @@ async function judgeFaithful(raw: string, healed: string, apiKey: string): Promi
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: JUDGE_MODEL,
-      temperature: 0,
+      // kimi-k2.7-code rejects any temperature but 1 ("only 1 is allowed for this model"); the judge
+      // rubric below is explicit enough that the small added variance is acceptable.
+      temperature: 1,
       messages: [
         {
           role: "system",

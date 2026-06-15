@@ -30,4 +30,12 @@ describe("acceptHeal", () => {
   it("rejects gross growth without running LCS", () => {
     expect(acceptHeal("short", `short ${"x".repeat(100)}`).accepted).toBe(false);
   });
+  it("rejects catastrophic shrinkage (model dropped/summarized a section)", () => {
+    const raw = "The first player to have 3 VPs in buildings on ports receives this tile. ".repeat(
+      3,
+    );
+    const verdict = acceptHeal(raw, "Strongest Ports tile rule.");
+    expect(verdict.accepted).toBe(false);
+    expect(verdict.reason).toBe("exceeds max shrink");
+  });
 });
