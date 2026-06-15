@@ -29,6 +29,8 @@ export interface HealVerdict {
 export interface AcceptHealOptions {
   /** Reject before LCS if healed grows beyond this fraction of raw length. */
   maxGrowth?: number;
+  /** Reject if healed shrinks beyond this fraction of raw length (model dropped content). */
+  maxShrink?: number;
   /** Per-section absolute insertion tolerance (casing/punctuation fixes). */
   baseTolerance?: number;
   /** Plus this fraction of raw length, for legitimate small edits in longer sections. */
@@ -38,6 +40,7 @@ export interface AcceptHealOptions {
 /** Decide whether a healed section is a faithful correction of raw (else keep raw). */
 export function acceptHeal(raw: string, healed: string, opts: AcceptHealOptions = {}): HealVerdict {
   const maxGrowth = opts.maxGrowth ?? 0.15;
+  const maxShrink = opts.maxShrink ?? 0.4;
   const baseTolerance = opts.baseTolerance ?? 8;
   const toleranceRatio = opts.toleranceRatio ?? 0.02;
 
@@ -46,6 +49,17 @@ export function acceptHeal(raw: string, healed: string, opts: AcceptHealOptions 
       accepted: false,
       insertions: healed.length - raw.length,
       reason: "exceeds max growth",
+    };
+  }
+  // LCS only measures INSERTIONS, so a heal that drops/summarizes whole passages (a real failure mode
+  // when the model condenses instead of fixing) would otherwise pass as "few insertions". A faithful
+  // word/spacing fix barely changes length, so reject any heal that shrinks beyond tolerance and keep
+  // raw. Guard against a legitimately tiny section (raw shorter than baseTolerance) tripping this.
+  if (raw.length > baseTolerance && healed.length < raw.length * (1 - maxShrink)) {
+    return {
+      accepted: false,
+      insertions: healed.length - raw.length,
+      reason: "exceeds max shrink",
     };
   }
   const insertions = alignmentInsertions(raw, healed);

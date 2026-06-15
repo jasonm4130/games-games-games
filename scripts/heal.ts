@@ -44,7 +44,10 @@ async function healSection(raw: string, apiKey: string): Promise<string> {
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: HEAL_MODEL,
-      temperature: 0,
+      // kimi-k2.7-code rejects any temperature but 1 ("only 1 is allowed for this model"). The
+      // faithfulness guarantee is NOT temperature — it's the acceptHeal char-alignment guardrail
+      // below (a healed section that grows beyond tolerance is rejected and the raw kept).
+      temperature: 1,
       messages: [
         { role: "system", content: HEAL_SYSTEM },
         { role: "user", content: raw },
