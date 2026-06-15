@@ -6,7 +6,9 @@ import { synthesizeSpeech } from "./tts";
 // vitest-pool-workers miniflare environment does not support natively. The @cloudflare/vite-plugin
 // compiles decorators at build time, but the test pool does not. We mock the entire agent module
 // so we only exercise the Hono route layer (which is all this test suite cares about).
-vi.mock("./agent", () => ({ RulesAgent: class {} }));
+// index.ts also imports MAX_OUTPUT_TOKENS from agent.ts (the shared output cap), so the mock must
+// expose it too — vitest throws on access to an export the factory omits.
+vi.mock("./agent", () => ({ RulesAgent: class {}, MAX_OUTPUT_TOKENS: 600 }));
 
 // The eval routes import retrieve()/retrieveDetailed() directly (they pull in Vectorize + AI
 // bindings, remote-only in the workers pool), so mock the module — these tests assert only the

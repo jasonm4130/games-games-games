@@ -46,6 +46,8 @@ export const chunks = sqliteTable("chunks", {
   text: text("text").notNull(),
   pageStart: integer("page_start"),
   pageEnd: integer("page_end"),
+  // Contextual-retrieval blurb (ingest --contextual). Kept by design: prepended to the embed text
+  // only, never shown in Citations — so it survives a non-contextual re-ingest as NULL, not dropped.
   contextBlurb: text("context_blurb"),
   headingPath: text("heading_path"),
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
@@ -56,8 +58,8 @@ export const dailyUsage = sqliteTable("daily_usage", {
   count: integer("count").notNull().default(0),
 });
 
-// Per-UTC-day cap on TTS (ElevenLabs) credit spend — the global breaker the per-IP/per-colo
-// TTS_LIMITER can't provide. Incremented per synthesised ruling in src/server/index.ts (migration 0005).
+// Per-UTC-day cap on TTS (ElevenLabs) credit spend — the global breaker the per-session, per-colo
+// TTS_LIMITER can't provide. Incremented per synthesised ruling in the agent's speak RPC (migration 0005).
 export const ttsDailyUsage = sqliteTable("tts_daily_usage", {
   day: text("day").primaryKey(),
   count: integer("count").notNull().default(0),

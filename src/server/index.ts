@@ -2,6 +2,7 @@ import { generateText } from "ai";
 import { Hono } from "hono";
 import { agentsMiddleware } from "hono-agents";
 import { createWorkersAI } from "workers-ai-provider";
+import { MAX_OUTPUT_TOKENS } from "./agent";
 import { formatGrounding } from "./rag/context";
 import { GEN_EVAL_MODELS, GENERATION_MODEL } from "./rag/models";
 import { buildRulesSystemPrompt } from "./rag/prompt";
@@ -98,7 +99,7 @@ app.post("/api/eval/answer", async (c) => {
     model: workersai(model),
     system: buildRulesSystemPrompt(gameName, grounding),
     prompt: query,
-    maxOutputTokens: 600,
+    maxOutputTokens: MAX_OUTPUT_TOKENS,
   });
   return c.json({ model, answer: text, passages: passages.map((p) => p.chunk.text) });
 });
