@@ -1,24 +1,26 @@
 import type { CSSProperties } from "react";
+import type { GameSummary } from "../shared/types";
 import { GoblinMark } from "./GoblinMark";
 import { accentFor } from "./theme";
 
-interface Game {
-  id: string;
-  name: string;
-  edition: string | null;
-}
-
 interface Props {
-  games: Game[];
+  games: GameSummary[];
   /** True once listGames has resolved — distinguishes "loading" from a genuinely empty shelf. */
   ready: boolean;
   onPick: (id: string) => void;
+  onAbout: () => void;
 }
 
 /** The landing page: the goblin's parlour, with each Game as a piece of box art on the shelf. */
-export function Catalogue({ games, ready, onPick }: Props) {
+export function Catalogue({ games, ready, onPick, onAbout }: Props) {
   return (
     <div className="parlour">
+      <nav className="parlour__nav">
+        <button type="button" className="parlour__navlink" onClick={onAbout}>
+          About ▸
+        </button>
+      </nav>
+
       <header className="parlour__masthead">
         <GoblinMark className="parlour__emblem" title="The Rules Goblin" />
         <h1 className="parlour__wordmark">

@@ -2,17 +2,12 @@ import { useAgentChat } from "@cloudflare/ai-chat/react";
 import { useAgent } from "agents/react";
 import { useEffect, useState } from "react";
 import type { RulesAgent } from "../server/agent";
-import type { Citation, RulesAgentState, RulesUIMessage } from "../shared/types";
+import type { Citation, GameSummary, RulesAgentState, RulesUIMessage } from "../shared/types";
+import { About } from "./About";
 import { Catalogue } from "./Catalogue";
 import { Chat } from "./Chat";
 import { CitationModal } from "./CitationModal";
 import { useGoblinVoice } from "./useGoblinVoice";
-
-interface Game {
-  id: string;
-  name: string;
-  edition: string | null;
-}
 
 /**
  * A per-browser-tab session id. Without an explicit `name`, every visitor shares one "default"
@@ -30,9 +25,9 @@ function getSessionId(): string {
 }
 
 export default function App() {
-  const [games, setGames] = useState<Game[]>([]);
+  const [games, setGames] = useState<GameSummary[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [view, setView] = useState<"catalogue" | "chat">("catalogue");
+  const [view, setView] = useState<"catalogue" | "chat" | "about">("catalogue");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeCite, setActiveCite] = useState<{ citation: Citation; n: number } | null>(null);
   const [sessionName] = useState(getSessionId);
@@ -87,7 +82,9 @@ export default function App() {
 
   return (
     <>
-      {view === "chat" && selectedGame ? (
+      {view === "about" ? (
+        <About gameCount={games.length} onBack={() => setView("catalogue")} />
+      ) : view === "chat" && selectedGame ? (
         <Chat
           game={selectedGame}
           messages={messages}
@@ -112,7 +109,12 @@ export default function App() {
           errorId={voice.errorId}
         />
       ) : (
-        <Catalogue games={games} ready={loaded} onPick={enterGame} />
+        <Catalogue
+          games={games}
+          ready={loaded}
+          onPick={enterGame}
+          onAbout={() => setView("about")}
+        />
       )}
       {activeCite ? (
         <CitationModal
