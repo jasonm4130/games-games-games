@@ -8,7 +8,7 @@ import {
 } from "ai";
 import { sql } from "drizzle-orm";
 import { createWorkersAI } from "workers-ai-provider";
-import type { RulesAgentState, RulesUIMessage, SpeakResult } from "../shared/types";
+import type { GameSummary, RulesAgentState, RulesUIMessage, SpeakResult } from "../shared/types";
 import { retrieveWithFollowup, speakableText, toCitations } from "./agent-core";
 import { db } from "./db";
 import { dailyUsage, games, ttsDailyUsage } from "./db/schema";
@@ -19,7 +19,8 @@ import { retrieve } from "./rag/retrieve";
 import { synthesizeSpeech, TTS_MAX_CHARS } from "./tts";
 
 // Cost / abuse guardrails (public, no-login). See wrangler.jsonc `ratelimits` + migrations/0003.
-const MAX_OUTPUT_TOKENS = 600; // output tokens cost ~8x input on Llama 70B — cap the worst case.
+// Exported so the streaming chat route (index.ts) caps the same way without a second literal.
+export const MAX_OUTPUT_TOKENS = 600; // output tokens cost ~8x input on Llama 70B — cap the worst case.
 const DAILY_BUDGET = 5000; // max LLM-answered queries per UTC day before the goblin "naps".
 const TTS_DAILY_BUDGET = 500; // max voiced rulings per UTC day — global ElevenLabs credit breaker.
 const INACTIVITY_TTL_SECONDS = 4 * 60 * 60; // wipe an idle session's DO after this (PII hygiene).
@@ -45,7 +46,7 @@ export class RulesAgent extends AIChatAgent<Env, RulesAgentState> {
 
   /** Callable from the client via `agent.stub.listGames()`. */
   @callable()
-  async listGames(): Promise<Array<{ id: string; name: string; edition: string | null }>> {
+  async listGames(): Promise<GameSummary[]> {
     try {
       return await db(this.env)
         .select({ id: games.id, name: games.name, edition: games.edition })
