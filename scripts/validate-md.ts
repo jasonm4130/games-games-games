@@ -11,23 +11,9 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { parseArgs } from "node:util";
 import { EMBEDDING_MODEL } from "../src/server/rag/models";
+import { splitSections } from "./lib/markdown";
 import { charPreservationRatio, missingNumbers } from "./lib/preserve";
-import { CF_API, fail, requireEnv, resolveCloudflareAuth } from "./lib/wrangler";
-
-function splitSections(md: string): string[] {
-  const lines = md.replace(/\r\n/g, "\n").split("\n");
-  const out: string[] = [];
-  let buf: string[] = [];
-  for (const line of lines) {
-    if (/^#{1,6}\s+/.test(line) && buf.length) {
-      out.push(buf.join("\n"));
-      buf = [];
-    }
-    buf.push(line);
-  }
-  if (buf.length) out.push(buf.join("\n"));
-  return out;
-}
+import { fail, requireEnv, resolveCloudflareAuth, workersAiRun } from "./lib/wrangler";
 
 async function cosineToRaw(
   raw: string,
@@ -35,13 +21,11 @@ async function cosineToRaw(
   accountId: string,
   aiToken: string,
 ): Promise<number> {
-  const res = await fetch(`${CF_API}/accounts/${accountId}/ai/run/${EMBEDDING_MODEL}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${aiToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ text: [raw, healed] }),
-  });
-  if (!res.ok) throw new Error(`Workers AI ${res.status}: ${await res.text()}`);
-  const { result } = (await res.json()) as { result: { data: number[][] } };
+  const { result } = await workersAiRun<{ result: { data: number[][] } }>(
+    EMBEDDING_MODEL,
+    { text: [raw, healed] },
+    { accountId, aiToken },
+  );
   const [a, b] = result.data;
   let dot = 0;
   let na = 0;

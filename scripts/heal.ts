@@ -11,6 +11,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
 import { acceptHeal } from "./lib/align";
+import { splitSections } from "./lib/markdown";
 import { fail, requireEnv } from "./lib/wrangler";
 
 const MOONSHOT_API = "https://api.moonshot.ai/v1";
@@ -20,22 +21,6 @@ const HEAL_SYSTEM =
   "Fix ONLY: broken words, letter-spacing, mojibake, stray hyphenation, and obvious spacing. " +
   "NEVER add, remove, summarize, reorder, or rephrase rules. NEVER invent numbers. " +
   "Preserve every number and markdown heading verbatim. Output ONLY the corrected section text.";
-
-// Split on ATX headings, keeping each heading with its body. Mirrors parseMarkdownSections intent.
-function splitSections(md: string): string[] {
-  const lines = md.replace(/\r\n/g, "\n").split("\n");
-  const sections: string[] = [];
-  let buf: string[] = [];
-  for (const line of lines) {
-    if (/^#{1,6}\s+/.test(line) && buf.length) {
-      sections.push(buf.join("\n"));
-      buf = [];
-    }
-    buf.push(line);
-  }
-  if (buf.length) sections.push(buf.join("\n"));
-  return sections;
-}
 
 async function healSection(raw: string, apiKey: string): Promise<string> {
   if (!raw.trim()) return raw;

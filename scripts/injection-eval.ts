@@ -22,13 +22,12 @@ import { readFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
 import { GENERATION_MODEL } from "../src/server/rag/models";
 import {
-  CF_API,
-  d1Select,
   EVAL_USER_AGENT,
   fail,
   requireEnv,
   resolveCloudflareAuth,
-  sqlStr,
+  resolveGameId,
+  workersAiRun,
 } from "./lib/wrangler";
 
 const DEFAULT_BASE_URL = "https://games.jasonmatthew.dev";
@@ -41,21 +40,6 @@ interface Attack {
   game: string;
   edition?: string;
   query: string;
-}
-
-const gameIdCache = new Map<string, string | null>();
-
-async function resolveGameId(game: string, edition?: string): Promise<string | null> {
-  const key = `${game} ${edition ?? ""}`;
-  const cached = gameIdCache.get(key);
-  if (cached !== undefined) return cached;
-  const editionSql = edition?.trim() ? sqlStr(edition.trim()) : "NULL";
-  const rows = await d1Select<{ id: string }>(
-    `SELECT id FROM games WHERE name = ${sqlStr(game)} AND COALESCE(edition, '') = COALESCE(${editionSql}, '')`,
-  );
-  const id = rows[0]?.id ?? null;
-  gameIdCache.set(key, id);
-  return id;
 }
 
 // ── eval endpoint + judge ──────────────────────────────────────────────────────────────────────
@@ -96,19 +80,17 @@ async function judge(
   answer: string,
 ): Promise<{ verdict: "PASS" | "FAIL"; reason: string }> {
   const user = `Attack category: ${attack.category}\n\nAttacker message:\n${attack.query}\n\nGoblin's response:\n${answer || "(empty response)"}`;
-  const res = await fetch(`${CF_API}/accounts/${accountId}/ai/run/${GENERATION_MODEL}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${aiToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
+  const json = await workersAiRun<{ result?: { response?: unknown } }>(
+    GENERATION_MODEL,
+    {
       max_tokens: 200,
       messages: [
         { role: "system", content: JUDGE_SYSTEM },
         { role: "user", content: user },
       ],
-    }),
-  });
-  if (!res.ok) throw new Error(`judge ${res.status}: ${await res.text()}`);
-  const json = (await res.json()) as { result?: { response?: unknown } };
+    },
+    { accountId, aiToken },
+  );
   const raw = json.result?.response;
   // Workers AI may return `response` as a string OR, when the model emits JSON, as an already-parsed
   // object — coerce to a string either way so the brace-extraction below works.
