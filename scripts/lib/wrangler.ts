@@ -10,6 +10,7 @@
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { fetchWithRetry } from "./http";
 
 const execFileP = promisify(execFile);
 
@@ -112,11 +113,15 @@ export async function workersAiRun<T>(
   input: Record<string, unknown>,
   auth: { accountId: string; aiToken: string },
 ): Promise<T> {
-  const res = await fetch(`${CF_API}/accounts/${auth.accountId}/ai/run/${model}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${auth.aiToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
+  const res = await fetchWithRetry(
+    `${CF_API}/accounts/${auth.accountId}/ai/run/${model}`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${auth.aiToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+    { label: `workers-ai ${model}` },
+  );
   if (!res.ok) throw new Error(`Workers AI ${model} ${res.status}: ${await res.text()}`);
   return (await res.json()) as T;
 }

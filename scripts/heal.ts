@@ -11,6 +11,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
 import { acceptHeal } from "./lib/align";
+import { fetchWithRetry } from "./lib/http";
 import { splitSections } from "./lib/markdown";
 import { fail, requireEnv } from "./lib/wrangler";
 
@@ -24,7 +25,7 @@ const HEAL_SYSTEM =
 
 async function healSection(raw: string, apiKey: string): Promise<string> {
   if (!raw.trim()) return raw;
-  const response = await fetch(`${MOONSHOT_API}/chat/completions`, {
+  const response = await fetchWithRetry(`${MOONSHOT_API}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
