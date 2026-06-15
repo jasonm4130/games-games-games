@@ -26,21 +26,20 @@
  * token can't shadow the login. `--contextual` additionally needs MOONSHOT_API_KEY (Kimi k2.7).
  *
  * Usage:
- *   pnpm ingest --game "Catan" --document "Base rules" --r2-key catan/base-5th.pdf \
+ *   pnpm ingest --game "Catan" --document "Base rules" \
+ *     --md-path rulebooks/catan/base.healed.md --r2-key catan/base.md \
  *     [--edition "5th"] [--kind base|expansion|errata] [--contextual]
  */
 
 import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { AutoTokenizer } from "@huggingface/transformers";
-import { GlobalWorkerOptions, getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { chunkPages } from "../src/server/rag/chunk";
+import { chunkMarkdown } from "../src/server/rag/chunk";
 import { EMBEDDING_MODEL } from "../src/server/rag/models";
-import type { ChunkInput, DocumentKind, PageText } from "../src/shared/types";
+import type { ChunkInput, DocumentKind } from "../src/shared/types";
 import {
   CF_API,
   D1_DATABASE,
@@ -53,7 +52,6 @@ import {
 } from "./lib/wrangler";
 
 const VECTORIZE_INDEX = "ggg-rules-index";
-const R2_BUCKET = "ggg-rulebooks";
 const EMBED_BATCH = 100; // Workers AI bge-m3 caps simple-embedding input at 100 strings/call.
 // …and at 60000 summed tokens/call. This is a LOCAL-tokenizer budget: the Xenova/bge-m3
 // tokenizer we count with undercounts vs Workers AI's server-side count by ~2.5x (53 contextual
@@ -81,37 +79,10 @@ async function d1File(path: string): Promise<void> {
   await wrangler(["d1", "execute", D1_DATABASE, "--remote", "--file", path]);
 }
 
-async function fetchPdf(r2Key: string, dest: string): Promise<void> {
-  await wrangler(["r2", "object", "get", `${R2_BUCKET}/${r2Key}`, "--file", dest, "--remote"]);
-}
-
-// ── PDF text extraction (pdfjs-dist legacy build; falls back to a main-thread worker in Node) ─
-
-async function extractPages(data: Uint8Array): Promise<PageText[]> {
-  // pdfjs runs its worker on the main thread in Node but still imports it from workerSrc, so it
-  // needs the real legacy worker module — an empty string is treated as "unspecified" and throws.
-  GlobalWorkerOptions.workerSrc = createRequire(import.meta.url).resolve(
-    "pdfjs-dist/legacy/build/pdf.worker.mjs",
-  );
-  // Node-safe defaults (no font/cmap urls needed for Latin PDFs).
-  const loadingTask = getDocument({ data });
-  const doc = await loadingTask.promise;
-  const pages: PageText[] = [];
-  for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber++) {
-    const page = await doc.getPage(pageNumber);
-    const content = await page.getTextContent();
-    const parts: string[] = [];
-    // items mixes TextItem (has `str`) and TextMarkedContent (does not). `hasEOL` ends a line.
-    for (const item of content.items as unknown as Array<{ str?: string; hasEOL?: boolean }>) {
-      if (typeof item.str !== "string") continue;
-      parts.push(item.str);
-      if (item.hasEOL) parts.push("\n");
-    }
-    pages.push({ pageNumber, text: parts.join("") });
-    page.cleanup();
-  }
-  await loadingTask.destroy(); // destroys the document + worker; PDFDocumentProxy has no destroy()
-  return pages;
+async function readMarkdown(path: string): Promise<string> {
+  const md = await readFile(path, "utf-8");
+  if (!md.trim()) throw new Error(`empty markdown: ${path}`);
+  return md;
 }
 
 // ── Workers AI REST embeddings (bge-m3; input field is `text`, max 100/call) ────────────────
@@ -237,6 +208,7 @@ async function main(): Promise<void> {
       edition: { type: "string" },
       document: { type: "string" },
       "r2-key": { type: "string" },
+      "md-path": { type: "string" },
       kind: { type: "string", default: "base" },
       contextual: { type: "boolean", default: false },
     },
@@ -245,6 +217,7 @@ async function main(): Promise<void> {
   const game = values.game ?? fail("--game is required");
   const documentTitle = values.document ?? fail("--document is required");
   const r2Key = values["r2-key"] ?? fail("--r2-key is required");
+  const mdPath = values["md-path"] ?? fail("--md-path is required (the healed .md to ingest)");
   // An empty/whitespace --edition means "no edition" (it collides with NULL via the games
   // identity index), so normalize to null; otherwise store the trimmed value.
   const edition = values.edition?.trim() || null;
@@ -285,25 +258,17 @@ async function main(): Promise<void> {
   try {
     // Heavy work first — extract, chunk, (contextualise), embed — so a failure here never
     // destroys the document's existing index (the delete happens only once vectors are ready).
-    console.log(`→ fetching ${R2_BUCKET}/${r2Key}`);
-    const pdfPath = join(workdir, "rulebook.pdf");
-    await fetchPdf(r2Key, pdfPath);
-    const pages = await extractPages(new Uint8Array(await readFile(pdfPath)));
-    const textPages = pages.filter((page) => page.text.trim().length > 0);
-    if (textPages.length === 0) {
-      throw new Error("no extractable text — is this a scanned PDF? (OCR is out of scope)");
-    }
-    console.log(`→ ${pages.length} pages (${textPages.length} with text); tokenizing + chunking`);
-
+    console.log(`-> reading ${mdPath}`);
+    const markdown = await readMarkdown(mdPath);
     const tokenizer = await AutoTokenizer.from_pretrained("Xenova/bge-m3");
     const countTokens = (text: string): number => tokenizer.encode(text).length;
-    const chunks = await chunkPages(pages, { countTokens });
+    const chunks = await chunkMarkdown(markdown, { countTokens });
     if (chunks.length === 0) throw new Error("chunking produced no chunks");
 
     let blurbs: string[] = [];
     if (contextual) {
-      console.log(`→ generating ${chunks.length} contextual blurbs (Kimi k2.7)`);
-      blurbs = await contextualBlurbs(pages.map((page) => page.text).join("\n\n"), chunks);
+      console.log(`-> generating ${chunks.length} contextual blurbs (Kimi k2.7)`);
+      blurbs = await contextualBlurbs(markdown, chunks);
     }
 
     // The blurb (when present) joins the heading-prefixed embed text — embedding only, never the
@@ -329,10 +294,12 @@ async function main(): Promise<void> {
       await d1Run(`DELETE FROM chunks WHERE document_id = ${sqlStr(documentId)}`);
     }
 
+    const numOrNull = (n: number | null) => (n === null ? "NULL" : String(n));
     const insertSql = chunks
       .map((chunk, i) => {
         const blurbSql = contextual && blurbs[i] ? sqlStr(blurbs[i]) : "NULL";
-        return `INSERT INTO chunks (id, document_id, ordinal, text, page_start, page_end, context_blurb) VALUES (${sqlStr(chunkIds[i])}, ${sqlStr(documentId)}, ${i}, ${sqlStr(chunk.text)}, ${chunk.pageStart}, ${chunk.pageEnd}, ${blurbSql});`;
+        const headingSql = chunk.headingPath ? sqlStr(chunk.headingPath) : "NULL";
+        return `INSERT INTO chunks (id, document_id, ordinal, text, page_start, page_end, context_blurb, heading_path) VALUES (${sqlStr(chunkIds[i])}, ${sqlStr(documentId)}, ${i}, ${sqlStr(chunk.text)}, ${numOrNull(chunk.pageStart)}, ${numOrNull(chunk.pageEnd)}, ${blurbSql}, ${headingSql});`;
       })
       .join("\n");
     const insertPath = join(workdir, "chunks.sql");
