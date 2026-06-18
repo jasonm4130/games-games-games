@@ -5,6 +5,7 @@ import {
   createUIMessageStream,
   createUIMessageStreamResponse,
   streamText,
+  wrapLanguageModel,
 } from "ai";
 import { sql } from "drizzle-orm";
 import { createWorkersAI } from "workers-ai-provider";
@@ -13,6 +14,7 @@ import { retrieveWithFollowup, speakableText, toCitations } from "./agent-core";
 import { db } from "./db";
 import { dailyUsage, games, ttsDailyUsage } from "./db/schema";
 import { formatGrounding, userTexts } from "./rag/context";
+import { dedupeDoubledTextMiddleware } from "./rag/dedupe-stream";
 import { GENERATION_MODEL } from "./rag/models";
 import { buildRulesSystemPrompt } from "./rag/prompt";
 import { retrieve } from "./rag/retrieve";
@@ -198,7 +200,13 @@ export class RulesAgent extends AIChatAgent<Env, RulesAgentState> {
     const citations = toCitations(passages);
 
     const result = streamText({
-      model: workersai(GENERATION_MODEL),
+      // Workers AI streams each token in both its native + OpenAI fields, which workers-ai-provider
+      // emits twice ("MyMy precious precious …"); the middleware collapses the duplicate (see
+      // rag/dedupe-stream). Remove once the provider dedupes the two upstream.
+      model: wrapLanguageModel({
+        model: workersai(GENERATION_MODEL),
+        middleware: dedupeDoubledTextMiddleware,
+      }),
       system: buildRulesSystemPrompt(gameName, grounding),
       messages,
       maxOutputTokens: MAX_OUTPUT_TOKENS,
