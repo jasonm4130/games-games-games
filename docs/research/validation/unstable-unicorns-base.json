@@ -1,0 +1,93 @@
+{
+  "rawPath": "rulebooks/unstable-unicorns/base.md",
+  "healedPath": "rulebooks/unstable-unicorns/base.healed.md",
+  "thresholds": {
+    "minSim": 0.92,
+    "minPres": 0.85,
+    "judgeSample": 8
+  },
+  "hardFails": 0,
+  "sections": [
+    {
+      "index": 0,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9910574150179067,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": "FAITHFUL"
+    },
+    {
+      "index": 1,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9998730789614405,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": "FAITHFUL"
+    },
+    {
+      "index": 2,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9996866015810636,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": "FAITHFUL"
+    },
+    {
+      "index": 3,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.999733916481042,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": "FAITHFUL"
+    },
+    {
+      "index": 4,
+      "missing": [],
+      "preservation": 0.9982332155477032,
+      "similarity": 0.9985315347202984,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": "FAITHFUL"
+    },
+    {
+      "index": 5,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9995052161852677,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": "FAITHFUL"
+    },
+    {
+      "index": 6,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9986295075354754,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": "FAITHFUL"
+    },
+    {
+      "index": 7,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9916359721499584,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": "FAITHFUL"
+    },
+    {
+      "index": 8,
+      "missing": [],
+      "preservation": 0.9977142857142857,
+      "similarity": 0.9995435555673439,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": "FAITHFUL"
+    }
+  ]
+}

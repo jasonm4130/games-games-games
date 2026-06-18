@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!env.d.ts", "!**/dist", "!**/.wrangler"]
+    "includes": ["**", "!env.d.ts", "!**/dist", "!**/.wrangler", "!**/graphify-out"]
   },
   "formatter": {
     "enabled": true,
