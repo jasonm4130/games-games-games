@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Citation } from "../shared/types";
-import { sourceLabel } from "./theme";
+import { sourceLabel, tokenColorFor } from "./theme";
 
 const base: Citation = {
   chunkId: "c",
@@ -24,5 +24,14 @@ describe("sourceLabel", () => {
   });
   it("returns empty when neither is known", () => {
     expect(sourceLabel(base)).toBe("");
+  });
+});
+
+describe("tokenColorFor", () => {
+  it("is deterministic for a given id", () => {
+    expect(tokenColorFor("catan")).toBe(tokenColorFor("catan"));
+  });
+  it("returns a colour from the parlour palette", () => {
+    expect(tokenColorFor("gloomhaven")).toMatch(/^#[0-9a-f]{6}$/);
   });
 });

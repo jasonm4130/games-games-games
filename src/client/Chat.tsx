@@ -1,7 +1,7 @@
-import { type CSSProperties, type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import type { Citation, GameSummary, RulesUIMessage } from "../shared/types";
-import { GoblinMark } from "./GoblinMark";
-import { accentFor, citationsOf, sourceLabel, textOf } from "./theme";
+import { GoblinAvatar } from "./Goblin";
+import { citationsOf, sourceLabel, textOf } from "./theme";
 
 interface Props {
   game: GameSummary;
@@ -18,7 +18,7 @@ interface Props {
   errorId: string | null;
 }
 
-/** The per-Game chat — the goblin tending one rulebook, themed to that Game's accent. */
+/** The per-Game chat: the goblin's ledger of questions, each ruling cited to the page. */
 export function Chat({
   game,
   messages,
@@ -34,11 +34,12 @@ export function Chat({
   errorId,
 }: Props) {
   const [input, setInput] = useState("");
-  const endRef = useRef<HTMLDivElement>(null);
+  const threadRef = useRef<HTMLDivElement>(null);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: keep the latest turn in view as messages stream.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keep the latest turn in view as it streams.
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = threadRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [messages, isStreaming]);
 
   function submit(event: FormEvent) {
@@ -49,105 +50,151 @@ export function Chat({
     onSend(text);
   }
 
-  return (
-    <div className="chat-screen" style={{ "--game-accent": accentFor(game.id) } as CSSProperties}>
-      <header className="chat-head">
-        <button type="button" className="chat-head__back" onClick={onBack}>
-          ◀ Parlour
-        </button>
-        <div className="chat-head__game">
-          <GoblinMark className="chat-head__goblin" />
-          <span className="chat-head__name">{game.name}</span>
-          {game.edition ? <span className="chat-head__edition">{game.edition} ed.</span> : null}
-        </div>
-        <button
-          type="button"
-          className="chat-head__new"
-          onClick={onNewConversation}
-          disabled={messages.length === 0}
-        >
-          New conversation
-        </button>
-      </header>
+  const turns = messages.filter((m) => m.role === "user").length;
+  const turnLabel =
+    turns === 0 ? "New session" : turns === 1 ? "1 question asked" : `${turns} questions asked`;
 
-      <main className="reel">
+  const last = messages[messages.length - 1];
+  const awaiting =
+    isStreaming &&
+    (!last || last.role === "user" || (last.role === "assistant" && textOf(last).trim() === ""));
+
+  return (
+    <div className="chat">
+      <div className="chathead">
+        <button type="button" className="chathead__back" onClick={onBack}>
+          ← Games
+        </button>
+        <span className="chathead__game">★ {game.name}</span>
+        <span className="chathead__right">
+          <button
+            type="button"
+            className="chathead__new"
+            onClick={onNewConversation}
+            disabled={messages.length === 0}
+          >
+            New
+          </button>
+          <span className="chathead__turns">{turnLabel}</span>
+        </span>
+      </div>
+
+      <div className="thread" ref={threadRef}>
         {messages.length === 0 ? (
-          <div className="reel__welcome">
-            <GoblinMark className="reel__welcome-goblin" />
-            <p>
-              The goblin guards the <strong>{game.name}</strong> rulebook. Ask him anything — he
-              answers straight from the text and shows you the page.
-            </p>
+          <div className="turn turn--goblin">
+            <GoblinAvatar className="turn__avatar" />
+            <div className="bubble bubble--goblin">
+              <div className="bubble__label">◆ The Goblin</div>
+              <div className="bubble__ruling">
+                Welcome to my parlour, seeker. Ask me anything about <strong>{game.name}</strong> —
+                rules, rulings, the lot — and I shall cite you the very page.
+              </div>
+            </div>
           </div>
         ) : (
           messages.map((message) => {
-            const cites = message.role === "assistant" ? citationsOf(message) : [];
-            const isGoblin = message.role === "assistant";
+            if (message.role === "user") {
+              return (
+                <div key={message.id} className="turn turn--you">
+                  <div className="turn__tag">You asked</div>
+                  <div className="bubble bubble--you">{textOf(message)}</div>
+                </div>
+              );
+            }
+
+            const text = textOf(message);
+            if (text.trim() === "" && citationsOf(message).length === 0) return null;
+            const cites = citationsOf(message);
+            const isSpeaking = speakingId === message.id;
+            const isLoading = loadingId === message.id;
             return (
-              <article key={message.id} className={`turn turn--${isGoblin ? "goblin" : "player"}`}>
-                {isGoblin ? <GoblinMark className="turn__avatar" /> : null}
-                <div className="turn__bubble">
-                  {isGoblin ? <span className="turn__stamp">Ruling</span> : null}
-                  {isGoblin ? (
-                    <button
-                      type="button"
-                      className="turn__speak"
-                      onClick={() => onToggleSpeak(message.id)}
-                      disabled={isStreaming || (loadingId !== null && loadingId !== message.id)}
-                      aria-label={
-                        speakingId === message.id ? "Stop reading" : "Read this ruling aloud"
-                      }
-                    >
-                      {speakingId === message.id ? "⏹" : loadingId === message.id ? "…" : "🔊"}
-                    </button>
-                  ) : null}
-                  {isGoblin && errorId === message.id ? (
-                    <span className="turn__voice-error" role="alert">
-                      🔇 the goblin couldn't read that aloud
-                    </span>
-                  ) : null}
-                  <div className="turn__body">{textOf(message)}</div>
+              <div key={message.id} className="turn turn--goblin">
+                <GoblinAvatar className="turn__avatar" />
+                <div className="bubble bubble--goblin">
+                  <div className="bubble__label">◆ The Goblin</div>
+                  <div className="bubble__ruling">{text}</div>
+
                   {cites.length > 0 ? (
-                    <div className="cite-row">
+                    <div className="cited">
+                      <span className="cited__label">Cited:</span>
                       {cites.map((citation, i) => {
                         const page = sourceLabel(citation);
                         return (
                           <button
                             key={citation.chunkId}
                             type="button"
-                            className="cite-chip"
+                            className="citechip"
                             onClick={() => onOpenCitation(citation, i + 1)}
                           >
-                            <span className="cite-chip__n">[{i + 1}]</span>
-                            <span className="cite-chip__meta">
-                              {citation.documentTitle}
-                              {page ? ` · ${page}` : ""}
-                            </span>
+                            <span className="citechip__n">[{i + 1}]</span>
+                            <span className="citechip__spine" aria-hidden="true" />
+                            <span className="citechip__title">{citation.documentTitle}</span>
+                            {page ? <span className="citechip__page">{page}</span> : null}
                           </button>
                         );
                       })}
                     </div>
                   ) : null}
+
+                  {text.trim() !== "" ? (
+                    errorId === message.id ? (
+                      <span className="hear hear--error" role="alert">
+                        🔇 the goblin couldn't read that aloud
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="hear"
+                        onClick={() => onToggleSpeak(message.id)}
+                        disabled={isStreaming || (loadingId !== null && !isLoading)}
+                        aria-label={isSpeaking ? "Stop reading" : "Read this ruling aloud"}
+                      >
+                        {isSpeaking ? (
+                          <>
+                            <span className="hear__wave" aria-hidden="true">
+                              <span />
+                              <span />
+                              <span />
+                              <span />
+                            </span>
+                            Speaking…
+                          </>
+                        ) : isLoading ? (
+                          "Summoning his voice…"
+                        ) : (
+                          <>
+                            <span className="hear__play" aria-hidden="true" />
+                            Hear it read aloud
+                          </>
+                        )}
+                      </button>
+                    )
+                  ) : null}
                 </div>
-              </article>
+              </div>
             );
           })
         )}
-        {isStreaming ? (
-          <div className="goblin-thinking">
-            <GoblinMark className="goblin-thinking__mark" />
-            <span>the goblin flips pages…</span>
+
+        {awaiting ? (
+          <div className="turn turn--goblin">
+            <GoblinAvatar className="turn__avatar" />
+            <div className="thinking">
+              <span className="thinking__dot" />
+              <span className="thinking__dot" />
+              <span className="thinking__dot" />
+              <span className="thinking__text">thumbing the tome…</span>
+            </div>
           </div>
         ) : null}
-        <div ref={endRef} />
-      </main>
+      </div>
 
       <form className="composer" onSubmit={submit}>
         <input
           className="composer__input"
           value={input}
           onChange={(event) => setInput(event.target.value)}
-          placeholder={`Ask about ${game.name}…`}
+          placeholder={`Ask the goblin a ${game.name} rules question…`}
           aria-label="Rules question"
         />
         {isStreaming ? (

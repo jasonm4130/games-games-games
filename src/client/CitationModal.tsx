@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { Citation } from "../shared/types";
-import { GoblinMark } from "./GoblinMark";
-import { sourceLabel } from "./theme";
+import { pageLabel } from "./theme";
 
 interface Props {
   citation: Citation;
@@ -36,46 +35,74 @@ export function CitationModal({ citation, n, onClose }: Props) {
     };
   }, [onClose]);
 
-  const page = sourceLabel(citation);
+  const page = pageLabel(citation);
+  const section = citation.headingPath ?? "";
+  const paragraphs = citation.text.split(/\n+/).filter((line) => line.trim() !== "");
 
   return (
-    <div className="cite-modal__wrap">
+    <div className="sheet-modal__wrap">
       {/* Sibling button (not a wrapping div) so backdrop-dismiss is keyboard-accessible. */}
       <button
         type="button"
-        className="cite-modal__backdrop"
+        className="sheet-modal__scrim"
         aria-label="Close passage"
         onClick={onClose}
       />
       <div
-        className="cite-modal"
+        className="sheet-modal"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="cite-modal-title"
+        aria-labelledby="sheet-modal-title"
       >
-        <header className="cite-modal__head">
-          <span className="cite-modal__kicker">From the rulebook</span>
-          <h2 id="cite-modal-title" className="cite-modal__title">
-            <span className="cite-modal__n">[{n}]</span>
-            {citation.gameName} — {citation.documentTitle}
-            {page ? <span className="cite-modal__page"> · {page}</span> : null}
-          </h2>
+        <header className="sheet-modal__head">
+          <div className="sheet-modal__headtext">
+            <span className="sheet-modal__kicker">Retrieved from the rulebook</span>
+            <h2 id="sheet-modal-title" className="sheet-modal__book">
+              {citation.documentTitle}
+            </h2>
+            <div className="sheet-modal__meta">
+              <span className="sheet-modal__tab">{citation.gameName}</span>
+              <span className="sheet-modal__n">[{n}]</span>
+              {page ? <span className="sheet-modal__page">{page}</span> : null}
+            </div>
+          </div>
           <button
             ref={closeRef}
             type="button"
-            className="cite-modal__close"
+            className="sheet-modal__close"
             onClick={onClose}
             aria-label="Close"
           >
             ✕
           </button>
         </header>
-        <div className="cite-modal__sheet">
-          <p className="cite-modal__text">{citation.text}</p>
+
+        <div className="sheet-modal__body">
+          {section ? (
+            <>
+              <div className="sheet-modal__heading">{section.split(" › ").pop()}</div>
+              <div className="sheet-modal__section">
+                § {section} · {citation.gameName}
+              </div>
+            </>
+          ) : null}
+          {paragraphs.map((line, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: passage lines are static and order-stable.
+            <p key={i} className="sheet-modal__p">
+              {line}
+            </p>
+          ))}
         </div>
-        <footer className="cite-modal__foot">
-          <GoblinMark className="cite-modal__goblin" />
-          <span>Straight from the goblin's hoard — nothing added, nothing left out.</span>
+
+        <footer className="sheet-modal__foot">
+          <div className="sheet-modal__goblin" aria-hidden="true">
+            <div className="sheet-modal__goblin-head" />
+            <div className="sheet-modal__goblin-eye sheet-modal__goblin-eye--l" />
+            <div className="sheet-modal__goblin-eye sheet-modal__goblin-eye--r" />
+          </div>
+          <span className="sheet-modal__quote">
+            “Straight from the goblin's hoard — nothing added, nothing left out.”
+          </span>
         </footer>
       </div>
     </div>

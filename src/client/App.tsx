@@ -7,6 +7,7 @@ import { About } from "./About";
 import { Catalogue } from "./Catalogue";
 import { Chat } from "./Chat";
 import { CitationModal } from "./CitationModal";
+import { Parlour } from "./Parlour";
 import { useGoblinVoice } from "./useGoblinVoice";
 
 /**
@@ -79,50 +80,80 @@ export default function App() {
   }
 
   const selectedGame = games.find((game) => game.id === selectedId) ?? null;
+  const speaking = voice.speakingId !== null;
+
+  const modal = activeCite ? (
+    <CitationModal
+      citation={activeCite.citation}
+      n={activeCite.n}
+      onClose={() => setActiveCite(null)}
+    />
+  ) : null;
+
+  if (view === "about") {
+    return (
+      <>
+        <About gameCount={games.length} onBack={() => setView("catalogue")} />
+        {modal}
+      </>
+    );
+  }
+
+  if (view === "chat" && selectedGame) {
+    const ribbon = isStreaming
+      ? "Mmm… let me thumb the tome and find the very line…"
+      : `Ask on. Every ${selectedGame.name} rule is inked in my ledger — I cite chapter and verse.`;
+    return (
+      <>
+        <Parlour
+          stepLabel={`In session · ${selectedGame.name}`}
+          ribbon={ribbon}
+          speaking={speaking}
+        >
+          <Chat
+            game={selectedGame}
+            messages={messages}
+            isStreaming={isStreaming}
+            onSend={(text) => {
+              voice.stop();
+              sendMessage({ role: "user", parts: [{ type: "text", text }] });
+            }}
+            onStop={() => stop()}
+            onNewConversation={() => {
+              voice.stop();
+              clearHistory();
+            }}
+            onBack={() => {
+              voice.stop();
+              setView("catalogue");
+            }}
+            onOpenCitation={(citation, n) => setActiveCite({ citation, n })}
+            onToggleSpeak={voice.toggle}
+            speakingId={voice.speakingId}
+            loadingId={voice.loadingId}
+            errorId={voice.errorId}
+          />
+        </Parlour>
+        {modal}
+      </>
+    );
+  }
 
   return (
     <>
-      {view === "about" ? (
-        <About gameCount={games.length} onBack={() => setView("catalogue")} />
-      ) : view === "chat" && selectedGame ? (
-        <Chat
-          game={selectedGame}
-          messages={messages}
-          isStreaming={isStreaming}
-          onSend={(text) => {
-            voice.stop();
-            sendMessage({ role: "user", parts: [{ type: "text", text }] });
-          }}
-          onStop={() => stop()}
-          onNewConversation={() => {
-            voice.stop();
-            clearHistory();
-          }}
-          onBack={() => {
-            voice.stop();
-            setView("catalogue");
-          }}
-          onOpenCitation={(citation, n) => setActiveCite({ citation, n })}
-          onToggleSpeak={voice.toggle}
-          speakingId={voice.speakingId}
-          loadingId={voice.loadingId}
-          errorId={voice.errorId}
-        />
-      ) : (
+      <Parlour
+        stepLabel="Pick a game"
+        ribbon="Welcome, seeker. Which game's tome shall I guard for you today?"
+        speaking={speaking}
+      >
         <Catalogue
           games={games}
           ready={loaded}
           onPick={enterGame}
           onAbout={() => setView("about")}
         />
-      )}
-      {activeCite ? (
-        <CitationModal
-          citation={activeCite.citation}
-          n={activeCite.n}
-          onClose={() => setActiveCite(null)}
-        />
-      ) : null}
+      </Parlour>
+      {modal}
     </>
   );
 }

@@ -30,17 +30,18 @@ export function sourceLabel(citation: Citation): string {
 }
 
 /**
- * A stable accent colour for a Game, derived from its id. Every Game reads as its own hue
- * (consumed as the `--game-accent` CSS var) with zero per-game assets — so the chat and its
- * catalogue tile share a colour, and a new Game is distinct the moment it is onboarded.
- * Hues are kept off the muddy yellow-green band (90–150°) so accents pop against the felt.
+ * The parlour palette for a Game's token shape on its "hoard" card. The design uses a fixed set
+ * of accents rather than a per-game hue, so each card gets a stable colour from this palette
+ * (chosen by hashing the id) — varied on the shelf, deterministic, zero per-game assets.
  */
-export function accentFor(id: string): string {
+const TOKEN_PALETTE = ["#ee6a4d", "#c98a3a", "#7d5ea8", "#3f7d8f", "#2f7d4f", "#e8b04b", "#d4512f"];
+
+export function tokenColorFor(id: string): string {
   let hash = 0;
   for (let i = 0; i < id.length; i++) {
     hash = (hash * 31 + id.charCodeAt(i)) | 0;
   }
-  const raw = ((hash % 360) + 360) % 360;
-  const hue = raw >= 90 && raw < 150 ? (raw + 120) % 360 : raw;
-  return `hsl(${hue} 72% 56%)`;
+  return TOKEN_PALETTE[
+    ((hash % TOKEN_PALETTE.length) + TOKEN_PALETTE.length) % TOKEN_PALETTE.length
+  ];
 }
