@@ -1,0 +1,381 @@
+{
+  "rawPath": "rulebooks/scrabble/base.md",
+  "healedPath": "rulebooks/scrabble/base.healed.md",
+  "thresholds": {
+    "minSim": 0.92,
+    "minPres": 0.85,
+    "judgeSample": 8
+  },
+  "hardFails": 0,
+  "sections": [
+    {
+      "index": 0,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9915872912663262,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": "FAITHFUL"
+    },
+    {
+      "index": 1,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9996652836046979,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 2,
+      "missing": [],
+      "preservation": 0.9894578313253012,
+      "similarity": 0.9983536961976179,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 3,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9998490823846241,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 4,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9950032852538817,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 5,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9994675103940689,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": "FAITHFUL"
+    },
+    {
+      "index": 6,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9990938966756028,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 7,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9990950373764047,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 8,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.999255882777957,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 9,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9996423942547256,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 10,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9989630121348466,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": "FAITHFUL"
+    },
+    {
+      "index": 11,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.999634241163178,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 12,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9994092844744369,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 13,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9998810325191202,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 14,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9989757345516976,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 15,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.999250471371021,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": "FAITHFUL"
+    },
+    {
+      "index": 16,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9971174549817996,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 17,
+      "missing": [],
+      "preservation": 0.9992328346758726,
+      "similarity": 0.9969777291850129,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 18,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9998282669017851,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 19,
+      "missing": [],
+      "preservation": 0.9989154013015185,
+      "similarity": 0.9993680407006407,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 20,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.992565777861504,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": "FAITHFUL"
+    },
+    {
+      "index": 21,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9996059565633274,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 22,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9893577240407885,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 23,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9990609149720048,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 24,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9990277463575926,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 25,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9979840666500933,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": "FAITHFUL"
+    },
+    {
+      "index": 26,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9997805743298441,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 27,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9965117377072576,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 28,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.99054201199752,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 29,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9977582299999489,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 30,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.999761589026523,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": "FAITHFUL"
+    },
+    {
+      "index": 31,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9821620831650597,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 32,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9995001448884184,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 33,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9997403245654044,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 34,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9987730511279513,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 35,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9996607700526594,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": "FAITHFUL"
+    },
+    {
+      "index": 36,
+      "missing": [],
+      "preservation": 0.9995147986414362,
+      "similarity": 0.9969761978862294,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 37,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9993369787427846,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 38,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9874651160593698,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 39,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9997549773159392,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": ""
+    },
+    {
+      "index": 40,
+      "missing": [],
+      "preservation": 1,
+      "similarity": 0.9875479174559286,
+      "similarityWarn": false,
+      "hardFail": false,
+      "judge": "FAITHFUL"
+    }
+  ]
+}
