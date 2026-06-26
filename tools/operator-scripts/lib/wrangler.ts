@@ -39,11 +39,14 @@ export function sqlStr(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
 }
 
-/** Run a wrangler subcommand against the OAuth login and return stdout. */
+/** Run a wrangler subcommand against the OAuth login and return stdout. Routed through the `worker`
+ *  package (`--filter worker exec`) because wrangler is a devDep of apps/worker, not of this package —
+ *  a plain `pnpm exec wrangler` from operator-scripts' cwd can't resolve the binary. The filter also
+ *  runs wrangler with apps/worker as cwd, so `wrangler.jsonc` (the ggg-db binding) is in scope. */
 export async function wrangler(args: string[]): Promise<string> {
   const env = { ...process.env };
   delete env.CLOUDFLARE_API_TOKEN;
-  const { stdout } = await execFileP("pnpm", ["exec", "wrangler", ...args], {
+  const { stdout } = await execFileP("pnpm", ["--filter", "worker", "exec", "wrangler", ...args], {
     env,
     maxBuffer: 256 * 1024 * 1024,
   });

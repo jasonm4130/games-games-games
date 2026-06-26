@@ -4,10 +4,13 @@
 // Keep it in sync by hand when a migration changes a column. See src/server/db/index.ts.
 //
 // NOTE: migration 0004 adds the FTS5 virtual table `chunks_fts` (the lexical leg of hybrid
-// retrieval, GAP 1) plus triggers that keep it 1:1 with `chunks`. FTS5 virtual tables aren't
-// modelled by `sqliteTable`, and the lexical query in src/server/rag/retrieve.ts reads chunks_fts
-// via raw `sql` (db().all(sql\`... MATCH ...\`)) rather than this query builder, so it has no entry
-// here by design — the triggers are the sync, ingest.ts writes nothing FTS-specific.
+// retrieval, GAP 1) plus triggers that keep it 1:1 with `chunks`. Migration 0007 makes the indexed
+// content CONTEXTUAL — the triggers now index `coalesce(context_blurb) || heading_path || text`, not
+// text alone, so the BM25 leg sees the same situating context the dense leg embeds (Contextual
+// Retrieval). FTS5 virtual tables aren't modelled by `sqliteTable`, and the lexical query in
+// src/server/rag/retrieve.ts reads chunks_fts via raw `sql` (db().all(sql\`... MATCH ...\`)) rather
+// than this query builder, so it has no entry here by design — the triggers are the sync, ingest.ts
+// writes nothing FTS-specific.
 
 import { sql } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
@@ -46,8 +49,9 @@ export const chunks = sqliteTable("chunks", {
   text: text("text").notNull(),
   pageStart: integer("page_start"),
   pageEnd: integer("page_end"),
-  // Contextual-retrieval blurb (ingest --contextual). Kept by design: prepended to the embed text
-  // only, never shown in Citations — so it survives a non-contextual re-ingest as NULL, not dropped.
+  // Contextual-retrieval blurb (ingest --contextual). Fed to BOTH retrieval legs: prepended to the
+  // embed text (dense) and, since migration 0007, into the chunks_fts content (lexical BM25). Never
+  // shown in Citations — so it survives a non-contextual re-ingest as NULL (COALESCE'd), not dropped.
   contextBlurb: text("context_blurb"),
   headingPath: text("heading_path"),
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
