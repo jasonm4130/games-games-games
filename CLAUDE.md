@@ -67,16 +67,30 @@ shapes against docs, not memory.
   local dev to the deployed index. The official TF provider has no native Vectorize
   resource, so the central infra repo manages it via the magodo/restful stopgap (ADR 0003).
 - **Workers AI always hits the network** — billed even during `vite dev`.
-- After editing `wrangler.jsonc`, run **`pnpm types`** to regenerate `env.d.ts`.
+- After editing `apps/worker/wrangler.jsonc`, run **`pnpm types`** to regenerate `apps/worker/env.d.ts`.
 
 ## Provisioning (central infra repo + wrangler, see ADR 0003)
 
 The R2 bucket, D1 database, and Vectorize index are owned by the **central Cloudflare
 Terraform repo `../jasonm4130-cf`** (Vectorize via the magodo/restful stopgap). This repo
 owns only the Worker + Durable Object + bindings. Provision in two steps: `make apply` in
-the central repo creates the resources, then `scripts/provision.sh` here wires the D1 id
-into `wrangler.jsonc` and applies the D1 migration. Do **not** add a local `terraform/`
+the central repo creates the resources, then `apps/worker/provision.sh` here wires the D1 id
+into `apps/worker/wrangler.jsonc` and applies the D1 migration. Do **not** add a local `terraform/`
 dir — account-level resources live in the central repo.
+
+## Repo layout (pnpm monorepo)
+
+- `apps/worker/` — the Cloudflare Worker (the only deployable): `src/`, `wrangler.jsonc`,
+  `vite`/`vitest` configs, `migrations/`, `env.d.ts`, `provision.sh`. **CF Builds' Path points here.**
+- `tools/operator-scripts/` — offline TS operator tooling (`ingest`, `eval`, `gen-gold`,
+  `injection-eval`, `validate-md`, `heal` + `lib/`). Imports shared Worker modules via the `worker`
+  workspace package: `worker/rag/{models,chunk,eval-metrics}`, `worker/shared/types` (the Worker's
+  `package.json` `exports` map; resolves under `tsc` + `tsx` thanks to bundler moduleResolution).
+- `tools/rulebook-prep/` — Python (uv) PDF→markdown tooling (`convert-pdfs.py`, `lib/clean.py`,
+  `pyproject.toml`). Deliberately **NOT a pnpm package**, so CF Builds never runs `uv sync`.
+- Root holds only workspace orchestration + shared dev tooling (Biome, tsc). `pnpm <script>` at root
+  delegates via `--filter` (`pnpm build/dev/deploy` → worker; `pnpm ingest/eval` → operator-scripts;
+  `pnpm check`/`pnpm test` run recursively across both packages).
 
 ## Commands
 
@@ -87,12 +101,12 @@ dir — account-level resources live in the central repo.
 | `pnpm deploy` | `vite build && wrangler deploy` |
 | `pnpm types` | regenerate `env.d.ts` from `wrangler.jsonc` |
 | `pnpm check` | Biome + `tsc` (lint, format-check, typecheck) |
-| `pnpm test` | Vitest (Workers pool) |
+| `pnpm test` | Vitest, recursive — worker (Workers pool) + operator-scripts (Node pool) |
 | `pnpm ingest` | operator ingestion — index a rulebook's markdown (`--md-path`, ADR 0008) |
 | `pnpm eval` | retrieval (+ optional `--gen`) eval against a gold set |
 | `pnpm gen-gold` | draft gold-set questions for a game |
 | `pnpm inject-eval` | prompt-injection eval (LLM-judged) |
-| `scripts/provision.sh` | App-side: wire D1 id + apply D1 migration (resources come from `../jasonm4130-cf`) |
+| `apps/worker/provision.sh` | App-side: wire D1 id + apply D1 migration (resources come from `../jasonm4130-cf`) |
 
 ## Releasing (Cloudflare Builds)
 
@@ -103,7 +117,7 @@ Builds** (~70s on a warm cache). That is the release path — do not deploy by h
 token shadows the `wrangler login` OAuth session — the Worker uploads but the
 route/custom-domain step dies with `Authentication error [code: 10000]`. If you must deploy
 manually, strip the token first: **`env -u CLOUDFLARE_API_TOKEN pnpm deploy`** (the same
-token-stripping `scripts/lib/wrangler.ts` does). Cold first-builds are slow; enable **Build
+token-stripping `tools/operator-scripts/lib/wrangler.ts` does). Cold first-builds are slow; enable **Build
 Caching** in the dashboard (Settings → Builds) to cache deps between builds.
 
 ## The grill-with-docs skill

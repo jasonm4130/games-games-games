@@ -13,8 +13,9 @@
 # (or CLOUDFLARE_API_TOKEN) and the resources to already exist. See docs/adr/0003.
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$repo_root"
+# This script lives in apps/worker/ alongside wrangler.jsonc + migrations/, so operate from here.
+worker_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$worker_dir"
 
 d1_database="${D1_DATABASE:-ggg-db}"
 

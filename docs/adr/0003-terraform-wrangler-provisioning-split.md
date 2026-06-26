@@ -33,15 +33,15 @@ truth for all account/zone infrastructure on the `jasonm4130` account.
 
 **Wiring:** `wrangler.jsonc` references the resources by name (R2, Vectorize) and by id
 (D1). The D1 `database_id` is produced when Terraform creates the database; resolve it with
-`wrangler d1 list` (or `scripts/provision.sh`, which patches `wrangler.jsonc` and applies
-the D1 migration).
+`wrangler d1 list` (or `apps/worker/provision.sh`, which patches `apps/worker/wrangler.jsonc` and
+applies the D1 migration).
 
 **Provisioning order:**
 
 1. `cd ../jasonm4130-cf && make plan && make apply` — creates the R2 bucket, D1 database,
    and Vectorize index.
-2. `./scripts/provision.sh` (this repo) — wires the D1 id into `wrangler.jsonc` and applies
-   the schema migration.
+2. `./apps/worker/provision.sh` (this repo) — wires the D1 id into `apps/worker/wrangler.jsonc` and
+   applies the schema migration.
 3. `pnpm deploy`.
 
 **Auth:** the central repo uses an account-scoped `CLOUDFLARE_API_TOKEN` (R2 Edit, D1 Edit,

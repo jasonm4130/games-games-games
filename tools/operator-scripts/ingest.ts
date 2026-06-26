@@ -38,9 +38,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { AutoTokenizer } from "@huggingface/transformers";
-import { chunkMarkdown } from "../src/server/rag/chunk";
-import { EMBEDDING_MODEL } from "../src/server/rag/models";
-import type { ChunkInput, DocumentKind } from "../src/shared/types";
+import { chunkMarkdown } from "worker/rag/chunk";
+import { EMBEDDING_MODEL } from "worker/rag/models";
+import type { ChunkInput, DocumentKind } from "worker/shared/types";
 import { fetchWithRetry } from "./lib/http";
 import {
   D1_DATABASE,

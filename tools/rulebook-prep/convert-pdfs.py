@@ -1,7 +1,7 @@
 """Convert a rulebook PDF to cleaned raw markdown (Docling primary, Marker --use_llm escalation).
 
-Usage:
-  uv run python scripts/convert-pdfs.py --pdf /path/in.pdf --out rulebooks/catan/tb.md \
+Usage (from tools/rulebook-prep/):
+  uv run python convert-pdfs.py --pdf /path/in.pdf --out ../../rulebooks/catan/tb.md \
       [--engine docling|marker] [--r2-key catan/tb.md]
 
 Docling needs no API key. --engine marker uses Marker with --use_llm (cloud Gemini, needs
@@ -15,11 +15,10 @@ import sys
 import tempfile
 from pathlib import Path
 
-# Make `scripts.lib.*` importable when run as `python scripts/convert-pdfs.py` (sys.path[0] would
-# otherwise be scripts/, not the repo root).
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# Make `lib.*` importable whether run as `python convert-pdfs.py` from here or via `uv run`.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from scripts.lib.clean import clean_markdown  # noqa: E402
+from lib.clean import clean_markdown  # noqa: E402
 
 R2_BUCKET = "ggg-rulebooks"
 

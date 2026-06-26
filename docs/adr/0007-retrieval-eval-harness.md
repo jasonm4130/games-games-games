@@ -28,12 +28,12 @@ enabled. They are not rate-limited or budget-counted — the secret is the gate 
 - `/api/eval/answer` retrieves then generates with a `model` override (default `GENERATION_MODEL`),
   so the llama-vs-gemma compare never mutates the production default. `GEN_EVAL_MODELS` lists the
   compared models; the agent keeps llama-3.3-70b until a human switches it deliberately.
-- `scripts/eval.ts` drives a gold set (`eval/gold/*.json`) and prints Hit-Rate@5 / Recall@20 /
+- `tools/operator-scripts/eval.ts` drives a gold set (`eval/gold/*.json`) and prints Hit-Rate@5 / Recall@20 /
   Precision@5 with a hybrid−dense delta; `--gen` adds the answer-quality compare (citation validity
-  + token-overlap heuristic in `src/server/rag/eval-metrics.ts`). `scripts/gen-gold.ts` PROPOSES
+  + token-overlap heuristic in `apps/worker/src/server/rag/eval-metrics.ts`). `tools/operator-scripts/gen-gold.ts` PROPOSES
   candidate gold Q&A (marked `_needsReview`) for the operator to curate.
 
-**Rejected:** REST-replicating retrieval in the script (like `scripts/ingest.ts`) — `retrieve()`
+**Rejected:** REST-replicating retrieval in the script (like `tools/operator-scripts/ingest.ts`) — `retrieve()`
 depends on the AI + Vectorize bindings + the reranker, painful to reproduce faithfully in Node, and
 the reimplementation would silently drift from production. Mutating `GENERATION_MODEL` for the gen
 compare — would risk shipping the non-default model; an endpoint param keeps the default untouched.

@@ -1,0 +1,26 @@
+{
+  "name": "operator-scripts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Offline operator tooling: ingest, eval, gold-set drafting, injection eval (not shipped to the Worker).",
+  "scripts": {
+    "ingest": "tsx ingest.ts",
+    "eval": "tsx eval.ts",
+    "inject-eval": "tsx injection-eval.ts",
+    "gen-gold": "tsx gen-gold.ts",
+    "validate-md": "tsx validate-md.ts",
+    "heal": "tsx heal.ts",
+    "typecheck": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
+    "worker": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.0",
+    "tsx": "^4.22.4",
+    "vitest": "^4.1.0"
+  }
+}

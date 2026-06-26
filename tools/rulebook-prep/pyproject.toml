@@ -16,11 +16,11 @@ escalation = ["marker-pdf>=1.10.2"]
 test = ["pytest>=8.0"]
 
 [tool.pytest.ini_options]
-testpaths = ["scripts/lib"]
+testpaths = ["lib"]
 
 [tool.setuptools]
 # This project ships NO Python package — it only pins the operator-side conversion deps; the
-# scripts/*.py helpers are imported by path, not installed. Declaring an empty module list disables
-# setuptools auto-discovery so `uv pip install -e .` does not scan the TypeScript `src/` dir (which
-# otherwise drops a stray src/*.egg-info build artifact).
+# .py helpers (convert-pdfs.py, lib/*.py) are imported by path, not installed. Declaring an empty
+# module list disables setuptools auto-discovery so `uv pip install -e .` does not scan and drop a
+# stray *.egg-info build artifact.
 py-modules = []
