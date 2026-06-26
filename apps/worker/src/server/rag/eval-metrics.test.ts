@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  citationAttributionPrecision,
   citationValidity,
   hitRateAt,
+  mrrAt,
+  ndcgAt,
   parseCitationMarkers,
   precisionAt,
   recallAt,
@@ -106,5 +109,72 @@ describe("precisionAt", () => {
 
   it("is 0 with no expected ids", () => {
     expect(precisionAt(["a", "b"], [], 5)).toBe(0);
+  });
+});
+
+describe("mrrAt", () => {
+  it("is 1 when the first expected id ranks first", () => {
+    expect(mrrAt(["a", "b", "c"], ["a"], 5)).toBe(1);
+  });
+
+  it("is 1/rank of the first expected id (rank 3 → 1/3)", () => {
+    expect(mrrAt(["a", "b", "c", "d"], ["c", "d"], 5)).toBeCloseTo(1 / 3);
+  });
+
+  it("is 0 when no expected id is in the top-k", () => {
+    // "f" ranks 6th, outside the top-5 window.
+    expect(mrrAt(["a", "b", "c", "d", "e", "f"], ["f"], 5)).toBe(0);
+  });
+
+  it("is 0 with no expected ids", () => {
+    expect(mrrAt(["a", "b"], [], 5)).toBe(0);
+  });
+});
+
+describe("ndcgAt", () => {
+  it("is 1 when all relevant ids fill the top ranks ideally", () => {
+    expect(ndcgAt(["a", "b", "c"], ["a", "b"], 5)).toBeCloseTo(1);
+  });
+
+  it("discounts a relevant id ranked lower (single hit at rank 2)", () => {
+    // DCG = 1/log2(3); IDCG = 1/log2(2) = 1 → nDCG = 1/log2(3) ≈ 0.6309.
+    expect(ndcgAt(["x", "a", "y"], ["a"], 5)).toBeCloseTo(1 / Math.log2(3));
+  });
+
+  it("stays ≤ 1 when the ranked list repeats a relevant id", () => {
+    // Without the dedup guard DCG would be 1/log2(2)+1/log2(3) ≈ 1.63 > IDCG=1; 'a' is counted once.
+    expect(ndcgAt(["a", "a"], ["a"], 5)).toBeCloseTo(1);
+  });
+
+  it("is 0 when nothing relevant is retrieved in the window", () => {
+    expect(ndcgAt(["a", "b", "c", "d", "e", "f"], ["f"], 5)).toBe(0);
+  });
+
+  it("is 0 with no expected ids", () => {
+    expect(ndcgAt(["a", "b"], [], 5)).toBe(0);
+  });
+});
+
+describe("citationAttributionPrecision", () => {
+  it("is the fraction of cited passages that contain an expected snippet", () => {
+    const cited = ["Each player starts with $1500.", "The bank never goes bankrupt."];
+    expect(citationAttributionPrecision(cited, ["each player starts with $1500"])).toBeCloseTo(0.5);
+  });
+
+  it("matches across case and reflowed whitespace", () => {
+    expect(
+      citationAttributionPrecision(
+        ["Pass  the\nTarget to another player"],
+        ["pass the target to another"],
+      ),
+    ).toBe(1);
+  });
+
+  it("is 0 when the answer cited nothing", () => {
+    expect(citationAttributionPrecision([], ["anything"])).toBe(0);
+  });
+
+  it("is 0 when no expected snippet is given", () => {
+    expect(citationAttributionPrecision(["some cited passage"], [])).toBe(0);
   });
 });
