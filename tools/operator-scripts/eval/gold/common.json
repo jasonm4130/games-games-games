@@ -1,0 +1,482 @@
+[
+  {
+    "game": "Exploding Kittens",
+    "query": "how many people can play this game?",
+    "expectedTextIncludes": [
+      "4 or 5 PLAYERS: Use all"
+    ],
+    "category": "players"
+  },
+  {
+    "game": "Exploding Kittens",
+    "query": "how many cards does the game come with?",
+    "expectedTextIncludes": [
+      "CONTENTS: 56 CARDS"
+    ],
+    "category": "components"
+  },
+  {
+    "game": "Exploding Kittens",
+    "query": "how many cards do I get dealt at the start?",
+    "expectedTextIncludes": [
+      "deal 7 cards face down to each player. Everyone now has a hand of 8 cards total (7 cards + 1 Defuse)"
+    ],
+    "category": "setup"
+  },
+  {
+    "game": "Exploding Kittens",
+    "query": "what do you do with the leftover Defuse cards after dealing one to everyone?",
+    "expectedTextIncludes": [
+      "Shuffle 2 of the extras back into the deck, and remove the rest from the game."
+    ],
+    "category": "setup"
+  },
+  {
+    "game": "Exploding Kittens",
+    "query": "how do you actually win?",
+    "expectedTextIncludes": [
+      "If you don't explode, you win."
+    ],
+    "category": "win"
+  },
+  {
+    "game": "Exploding Kittens",
+    "query": "do you have to play a card every turn or can you just draw straight away?",
+    "expectedTextIncludes": [
+      "Play as many or as few cards as you'd like, then draw a card to end your turn."
+    ],
+    "category": "turn"
+  },
+  {
+    "game": "Exploding Kittens",
+    "query": "can you throw down a Nope card when it's not even your turn?",
+    "expectedTextIncludes": [
+      "You can play a Nope at any time before an action has begun, even if it's not your turn."
+    ],
+    "category": "action"
+  },
+  {
+    "game": "Exploding Kittens",
+    "query": "if someone attacks me and I play a Skip, does it get me out of both turns or just one?",
+    "expectedTextIncludes": [
+      "If you play a Skip as a defense to an Attack, it only ends 1 of the 2 turns. 2 Skips would end both turns."
+    ],
+    "category": "action"
+  },
+  {
+    "game": "Exploding Kittens",
+    "query": "when is the game actually over?",
+    "expectedTextIncludes": [
+      "The last Living player wins the game."
+    ],
+    "category": "endgame"
+  },
+  {
+    "game": "Exploding Kittens",
+    "query": "do you earn points in this game or does the last person alive just win?",
+    "expectedTextIncludes": [
+      "Eventually, every player will explode except for one, who wins the game!"
+    ],
+    "category": "scoring"
+  },
+  {
+    "game": "Catan",
+    "query": "How many people can play Catan?",
+    "expectedTextIncludes": [
+      "Place 2 settlements and 2 roads of each color as shown. If only 3 are playing, remove the red pieces."
+    ],
+    "category": "players"
+  },
+  {
+    "game": "Catan",
+    "query": "What pieces and cards come inside the Catan box?",
+    "expectedTextIncludes": [
+      "95 resource cards (bearing the symbols for the brick, grain, lumber, ore, and wool resources)"
+    ],
+    "category": "components"
+  },
+  {
+    "game": "Catan",
+    "query": "Who goes first and how do you decide the starting player?",
+    "expectedTextIncludes": [
+      "Each player rolls both dice. The player who rolls highest is the starting player and begins."
+    ],
+    "category": "setup"
+  },
+  {
+    "game": "Catan",
+    "query": "How many resource cards does each player get at the very start of the game?",
+    "expectedTextIncludes": [
+      "Each player receives the 3 resources from the terrain hexes adjacent to their settlement marked by the white star."
+    ],
+    "category": "setup"
+  },
+  {
+    "game": "Catan",
+    "query": "How many points do you need to win Catan?",
+    "expectedTextIncludes": [
+      "The first player to reach (be at) 10 victory points (VPs) on their turn wins the game."
+    ],
+    "category": "win"
+  },
+  {
+    "game": "Catan",
+    "query": "What do you do on your turn and in what order?",
+    "expectedTextIncludes": [
+      "- Roll for Resource Production Y (the roll applies to all players)\n\n- Trade Y\n\n- Build Y"
+    ],
+    "category": "turn"
+  },
+  {
+    "game": "Catan",
+    "query": "What happens when someone rolls a 7? Do you lose cards if you have too many?",
+    "expectedTextIncludes": [
+      "every player who has more than 7 resource cards must select half (rounded down) of their resource cards and return them to the bank."
+    ],
+    "category": "action"
+  },
+  {
+    "game": "Catan",
+    "query": "Can I trade with the bank if no one wants what I have? Is there a minimum trade ratio?",
+    "expectedTextIncludes": [
+      "you can always trade at 4:1 by putting 4 identical resource cards back in their stack and taking any 1 resource card of your choice for it."
+    ],
+    "category": "action"
+  },
+  {
+    "game": "Catan",
+    "query": "Does the game end the moment someone hits 10 points, or do you have to wait for your turn?",
+    "expectedTextIncludes": [
+      "If you have-or reach-10 victory points on your turn, the game ends immediately and you win!"
+    ],
+    "category": "endgame"
+  },
+  {
+    "game": "Catan",
+    "query": "What gives you points in Catan? What is everything worth?",
+    "expectedTextIncludes": [
+      "1 settlement = 1 VP\n\n1 city = 2 VPs\n\nLongest Road special card = 2 VPs\n\nLargest Army special card = 2 VPs\n\nVictory point (VP) card = 1 VP"
+    ],
+    "category": "scoring"
+  },
+  {
+    "game": "Monopoly",
+    "query": "how many people can play Monopoly at once?",
+    "expectedTextIncludes": [
+      "When more than five persons play, the Banker may elect to act only as Banker and Auctioneer."
+    ],
+    "category": "players"
+  },
+  {
+    "game": "Monopoly",
+    "query": "what pieces and stuff come in the Monopoly box?",
+    "expectedTextIncludes": [
+      "The equipment consists of a board, 2 dice, tokens, 32 houses and 12 hotels."
+    ],
+    "category": "components"
+  },
+  {
+    "game": "Monopoly",
+    "query": "how much money does each person get at the start?",
+    "expectedTextIncludes": [
+      "Each player is given $1500 divided as follows: 2 each of $500' s, $100' s and $50' s; 6 $20' s; 5 each of $10' s, $5' s and $1' s."
+    ],
+    "category": "setup"
+  },
+  {
+    "game": "Monopoly",
+    "query": "in the fast version of the game do you get any property cards to start with?",
+    "expectedTextIncludes": [
+      "the Banker shuffles then deals three Title Deed cards to each player. These are free - no payment to the Bank is required."
+    ],
+    "category": "setup"
+  },
+  {
+    "game": "Monopoly",
+    "query": "what is the goal of Monopoly and how do you actually win?",
+    "expectedTextIncludes": [
+      "The object of the game is to become the wealthiest player through buying, renting and selling property."
+    ],
+    "category": "win"
+  },
+  {
+    "game": "Monopoly",
+    "query": "what do you do on your turn in Monopoly?",
+    "expectedTextIncludes": [
+      "throw the dice and move your token in the direction of the arrow the number of spaces indicated by the dice."
+    ],
+    "category": "turn"
+  },
+  {
+    "game": "Monopoly",
+    "query": "do I have to pay if I land on another player's space?",
+    "expectedTextIncludes": [
+      "When you land on property owned by another player, the owner collects rent from you in accordance with the list printed on its Title Deed card."
+    ],
+    "category": "action"
+  },
+  {
+    "game": "Monopoly",
+    "query": "how do you get out of jail?",
+    "expectedTextIncludes": [
+      "You get out of Jail by... (1) throwing doubles on any of your next three turns"
+    ],
+    "category": "action"
+  },
+  {
+    "game": "Monopoly",
+    "query": "when is a player out of the game for good?",
+    "expectedTextIncludes": [
+      "You are declared bankrupt if you owe more than you can pay either to another player or to the Bank."
+    ],
+    "category": "endgame"
+  },
+  {
+    "game": "Monopoly",
+    "query": "what if nobody goes broke \u2014 is there a way to end the game early and figure out who's ahead?",
+    "expectedTextIncludes": [
+      "agree upon a definite hour of termination, when the richest player will be declared the winner."
+    ],
+    "category": "scoring"
+  },
+  {
+    "game": "Sushi Go!",
+    "query": "how many people can play Sushi Go?",
+    "expectedTextIncludes": [
+      "In a 5 player game, deal 7 cards to each player."
+    ],
+    "category": "players"
+  },
+  {
+    "game": "Sushi Go!",
+    "query": "what cards come in the box?",
+    "expectedTextIncludes": [
+      "14x Sashimi"
+    ],
+    "category": "components"
+  },
+  {
+    "game": "Sushi Go!",
+    "query": "how many cards does each person get at the start?",
+    "expectedTextIncludes": [
+      "In a 4 player game, deal 8 cards to each player."
+    ],
+    "category": "setup"
+  },
+  {
+    "game": "Sushi Go!",
+    "query": "how do you win Sushi Go?",
+    "expectedTextIncludes": [
+      "Whoever has the most points after 3 rounds is the winner."
+    ],
+    "category": "win"
+  },
+  {
+    "game": "Sushi Go!",
+    "query": "what actually happens when it's your turn?",
+    "expectedTextIncludes": [
+      "all players simultaneously choose any 1 card from their hands that they would like to keep and place it face-down in front of them"
+    ],
+    "category": "turn"
+  },
+  {
+    "game": "Sushi Go!",
+    "query": "what does the chopsticks card actually let you do?",
+    "expectedTextIncludes": [
+      "you may take 2 sushi cards on a future turn!"
+    ],
+    "category": "action"
+  },
+  {
+    "game": "Sushi Go!",
+    "query": "does wasabi triple any card you pick up, or only specific ones?",
+    "expectedTextIncludes": [
+      "this nigiri must be placed on top of the wasabi. This is to show that the nigiri has been dipped in wasabi and has tripled in value!"
+    ],
+    "category": "action"
+  },
+  {
+    "game": "Sushi Go!",
+    "query": "how many rounds does a full game last?",
+    "expectedTextIncludes": [
+      "After the third round is scored, there will be some cards remaining in the draw pile."
+    ],
+    "category": "endgame"
+  },
+  {
+    "game": "Sushi Go!",
+    "query": "how do pudding cards score \u2014 when do you count them?",
+    "expectedTextIncludes": [
+      "The player with the most pudding cards scores 6 points ."
+    ],
+    "category": "scoring"
+  },
+  {
+    "game": "Sushi Go!",
+    "query": "how many points do dumplings give you?",
+    "expectedTextIncludes": [
+      "The more dumpling cards you have, the more points you will score"
+    ],
+    "category": "scoring"
+  },
+  {
+    "game": "The Quacks of Quedlinburg",
+    "query": "how many players can join a game of Quacks of Quedlinburg?",
+    "expectedTextIncludes": [
+      "for 2-4 players ages 10 and up"
+    ],
+    "category": "players"
+  },
+  {
+    "game": "The Quacks of Quedlinburg",
+    "query": "what pieces and components come in the box?",
+    "expectedTextIncludes": [
+      "4 pots (player boards)\n\n1 Scoring Track with Turn Indicator\n\n215 ingredient chips"
+    ],
+    "category": "components"
+  },
+  {
+    "game": "The Quacks of Quedlinburg",
+    "query": "what chips do I put in my bag at the very start of the game?",
+    "expectedTextIncludes": [
+      "1 white 3-chip, 1 orange 1-chip and 1 green 1-chip, and puts them into their bag"
+    ],
+    "category": "setup"
+  },
+  {
+    "game": "The Quacks of Quedlinburg",
+    "query": "what's the point of the game \u2014 what am I actually trying to do?",
+    "expectedTextIncludes": [
+      "players draw from their ingredient bag in the hopes of creating the best potion"
+    ],
+    "category": "win"
+  },
+  {
+    "game": "The Quacks of Quedlinburg",
+    "query": "what does everyone do during a round \u2014 how does a turn actually play out?",
+    "expectedTextIncludes": [
+      "everyone draws chip after chip from their bags, placing them on the appropriate numbered space in their pots"
+    ],
+    "category": "turn"
+  },
+  {
+    "game": "The Quacks of Quedlinburg",
+    "query": "when does my pot blow up and what happens when it does?",
+    "expectedTextIncludes": [
+      "you have too many cherry bombs in your potion and the pot explodes"
+    ],
+    "category": "action"
+  },
+  {
+    "game": "The Quacks of Quedlinburg",
+    "query": "can I choose to stop pulling chips out of my bag before I explode?",
+    "expectedTextIncludes": [
+      "Once everyone has decided to stop drawing chips, or has been forced to stop because of an explosion"
+    ],
+    "category": "action"
+  },
+  {
+    "game": "The Quacks of Quedlinburg",
+    "query": "how do I earn victory points at the end of a round?",
+    "expectedTextIncludes": [
+      "everyone receives the victory points depicted on their respective scoring space"
+    ],
+    "category": "scoring"
+  },
+  {
+    "game": "The Quacks of Quedlinburg",
+    "query": "how many rounds does a full game last?",
+    "expectedTextIncludes": [
+      "The game consists of 9 turns."
+    ],
+    "category": "endgame"
+  },
+  {
+    "game": "The Quacks of Quedlinburg",
+    "query": "how many new ingredient chips can I buy at the end of a round?",
+    "expectedTextIncludes": [
+      "If buying 2 chips, they cannot be the same color"
+    ],
+    "category": "action"
+  },
+  {
+    "game": "Scrabble",
+    "query": "how many people can play Scrabble?",
+    "expectedTextIncludes": [
+      "SCRABBLE\u00ae is a word game for 2, 3 or 4 players."
+    ],
+    "category": "players"
+  },
+  {
+    "game": "Scrabble",
+    "query": "what comes in the Scrabble box?",
+    "expectedTextIncludes": [
+      "100 Magnetic Letter Tiles\n\n- 4 Magnetic Tile Racks\n\n- 1 Tile/Storage Bag\n\n- 1 Playing Board"
+    ],
+    "category": "components"
+  },
+  {
+    "game": "Scrabble",
+    "query": "how many tiles do you get at the start of the game?",
+    "expectedTextIncludes": [
+      "Each player, in turn, then draws seven new tiles and places them on their racks."
+    ],
+    "category": "setup"
+  },
+  {
+    "game": "Scrabble",
+    "query": "how do you win at Scrabble?",
+    "expectedTextIncludes": [
+      "The object of the game is to get the highest score."
+    ],
+    "category": "win"
+  },
+  {
+    "game": "Scrabble",
+    "query": "what are my options when it's my turn?",
+    "expectedTextIncludes": [
+      "has the choice of exchanging tiles, passing or adding one or more tiles to those already played so as to form new words"
+    ],
+    "category": "turn"
+  },
+  {
+    "game": "Scrabble",
+    "query": "do I draw new tiles after I play some?",
+    "expectedTextIncludes": [
+      "the player draws as many new tiles as they have played, thus always keeping seven tiles in their rack"
+    ],
+    "category": "turn"
+  },
+  {
+    "game": "Scrabble",
+    "query": "what happens if I think someone played a fake or made-up word?",
+    "expectedTextIncludes": [
+      "If the word challenged is unacceptable, the player takes back their tiles and loses their turn."
+    ],
+    "category": "action"
+  },
+  {
+    "game": "Scrabble",
+    "query": "when does the game end?",
+    "expectedTextIncludes": [
+      "all the tiles have been drawn and one of the players has used all the tiles in their rack"
+    ],
+    "category": "endgame"
+  },
+  {
+    "game": "Scrabble",
+    "query": "what do the different colored squares on the board do?",
+    "expectedTextIncludes": [
+      "A light red square doubles the score of the word. A dark red square triples the score of the word."
+    ],
+    "category": "scoring"
+  },
+  {
+    "game": "Scrabble",
+    "query": "is there a bonus for using all seven tiles in one turn?",
+    "expectedTextIncludes": [
+      "Any player who plays all seven of their tiles in a single turn scores a premium of 50 points in addition to their regular score"
+    ],
+    "category": "scoring"
+  }
+]
