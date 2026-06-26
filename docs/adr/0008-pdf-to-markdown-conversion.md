@@ -8,7 +8,7 @@ supersedes: 0005 (partial — the pdfjs extraction mechanism only)
 Ingestion no longer extracts PDF text with `pdfjs-dist` at ingest time. Each Rulebook PDF is
 converted **once, offline, to clean markdown** (Docling, escalating to Marker `--use_llm` for
 graphically-designed files), **healed** (a bounded Kimi pass + deterministic cleaning), validated,
-and stored as the onboarded source. `scripts/ingest.ts` then reads markdown, not PDF.
+and stored as the onboarded source. `tools/operator-scripts/ingest.ts` then reads markdown, not PDF.
 
 This **supersedes only the pdfjs-extraction mechanism described in ADR 0005** — the decision that
 Ingestion runs as an operator-side Node script (not a Worker) still stands. Only the source format
@@ -51,8 +51,8 @@ preservation, bge-m3 embedding similarity, and a sampled Kimi faithfulness judge
 
 ## Consequences
 
-- New offline operator stages: `scripts/convert-pdfs.py` (Python) + `scripts/heal.ts` +
-  `scripts/validate-md.ts` (Node). The Worker hot path is unchanged — it only queries the index.
+- New offline operator stages: `tools/rulebook-prep/convert-pdfs.py` (Python) + `tools/operator-scripts/heal.ts` +
+  `tools/operator-scripts/validate-md.ts` (Node). The Worker hot path is unchanged — it only queries the index.
 - **Public-repo copyright:** the repo is public, so healed text of copyrighted rulebooks is **not
   committed** — it lives in R2 + a gitignored local working copy, exactly as the source PDFs already
   do. Only code, validation reports, and public-domain rulebooks are committed.

@@ -22,7 +22,7 @@ invented rules, no "I think": every ruling is grounded in the text and cited so 
   Durable Object instance (no conversation bleed between visitors).
 - **A themed chat UI** — "The Goblin's Game Parlour" — with an optional spoken-ruling goblin voice
   (ElevenLabs TTS).
-- **Hardened against prompt injection** (see `src/server/rag/prompt.ts`, exercised by `pnpm inject-eval`)
+- **Hardened against prompt injection** (see `apps/worker/src/server/rag/prompt.ts`, exercised by `pnpm inject-eval`)
   and protected by per-session rate limits and a daily budget breaker.
 
 ## How it works
@@ -62,14 +62,14 @@ domain vocabulary lives in [CONTEXT.md](./CONTEXT.md).
 | Storage | R2 (source files) · D1 (Drizzle ORM) · Vectorize |
 | API / web | Hono · React 19 + Vite 8 (served from the same Worker via `@cloudflare/vite-plugin`) |
 | Offline tooling | Python ([Docling](https://github.com/docling-project/docling)) for PDF→markdown · `tsx` operator scripts |
-| Quality | Biome · Vitest (Workers pool) · `pytest` · a retrieval + generation eval harness |
+| Quality | Biome · Vitest (Workers + Node pools) · `pytest` · a retrieval + generation eval harness |
 
 ## Getting started (local)
 
 ```sh
 pnpm install
-cp .dev.vars.example .dev.vars   # fill in what you need — all optional for a basic run
-pnpm types                        # generate env.d.ts from wrangler.jsonc
+cp apps/worker/.dev.vars.example apps/worker/.dev.vars   # fill in what you need — all optional for a basic run
+pnpm types                        # regenerate apps/worker/env.d.ts from wrangler.jsonc
 pnpm dev                          # vite dev — SPA + Worker + agent with HMR
 ```
 
@@ -86,7 +86,7 @@ and require `wrangler login` (and incur usage). The chat UI loads without them.
 | `pnpm deploy` | `vite build && wrangler deploy` |
 | `pnpm types` | regenerate `env.d.ts` from `wrangler.jsonc` |
 | `pnpm check` | Biome (lint + format) + `tsc` |
-| `pnpm test` | Vitest (Workers pool) |
+| `pnpm test` | Vitest, recursive (worker · Workers pool + operator-scripts · Node pool) |
 | `pnpm ingest` | operator ingestion — index a rulebook's markdown (see below) |
 | `pnpm eval` | retrieval (+ optional generation) eval against a gold set |
 | `pnpm inject-eval` | prompt-injection eval (LLM-judged) against the hardened prompt |
@@ -98,9 +98,10 @@ Rulebook PDFs are copyrighted and are **not** stored in this repo (`rulebooks/` 
 the steps below are what *the operator* runs locally to index a book they have.
 
 ```sh
-# 1. PDF → cleaned markdown (Python; Docling needs no API key)
-uv venv && uv pip install -e .
-uv run python scripts/convert-pdfs.py --pdf ./catan-base.pdf --out rulebooks/catan/base.md
+# 1. PDF → cleaned markdown (Python; Docling needs no API key) — run from tools/rulebook-prep/
+cd tools/rulebook-prep && uv venv && uv pip install -e .
+uv run python convert-pdfs.py --pdf ./catan-base.pdf --out ../../rulebooks/catan/base.md
+cd ../..
 
 # 2. Index it. Reusing an existing --r2-key replaces that document's chunks in place (idempotent).
 pnpm ingest --game "Catan" --document "Base Game" --kind base \
@@ -110,7 +111,7 @@ pnpm ingest --game "Catan" --document "Base Game" --kind base \
 
 Everything rides your `wrangler login` session — no Cloudflare token to export (embeddings hit the
 Workers AI REST API with a bearer pulled from `wrangler auth token`). The Python `clean.py` logic is
-unit-tested with `uv run pytest scripts/lib`.
+unit-tested with `uv run pytest` (from `tools/rulebook-prep/`).
 
 **One-time:** the Vectorize metadata indexes must exist before the first ingest —
 ```sh
@@ -129,30 +130,34 @@ own fork without that repo, create the resources manually and wire the D1 id int
 wrangler r2 bucket create ggg-rulebooks
 wrangler d1 create ggg-db
 wrangler vectorize create ggg-rules-index --dimensions=1024 --metric=cosine
-./scripts/provision.sh   # wires the D1 id into wrangler.jsonc + applies the D1 migrations
+./apps/worker/provision.sh   # wires the D1 id into apps/worker/wrangler.jsonc + applies the D1 migrations
 pnpm deploy
 ```
 
 ## Layout
 
 ```
-src/
-  server/        Worker entry, the agent, and the RAG library
-    index.ts     Hono app — routes + RulesAgent export + static SPA
-    agent.ts     RulesAgent (AIChatAgent) — chat, game selection, TTS RPC
-    agent-core.ts pure agent helpers (prompt assembly, citation mapping)
-    rag/         chunk · retrieve · rerank · prompt · models · eval-metrics
-    db/          Drizzle schema
-    tts.ts       ElevenLabs goblin voice
-  client/        React SPA (Catalogue · Chat · CitationModal · About)
-  shared/        types shared by server + client
-migrations/      D1 schema (Drizzle)
-scripts/         ingest.ts · eval.ts · gen-gold.ts · injection-eval.ts · convert-pdfs.py · lib/
+apps/worker/        the only deployable (Cloudflare Worker)
+  src/
+    server/         Worker entry, the agent, and the RAG library
+      index.ts      Hono app — routes + RulesAgent export + static SPA
+      agent.ts      RulesAgent (AIChatAgent) — chat, game selection, TTS RPC
+      agent-core.ts pure agent helpers (prompt assembly, citation mapping)
+      rag/          chunk · retrieve · rerank · prompt · models · eval-metrics
+      db/           Drizzle schema
+      tts.ts        ElevenLabs goblin voice
+    client/         React SPA (Catalogue · Chat · CitationModal · About)
+    shared/         types shared by server + client (re-exported to the operator tools)
+  migrations/       D1 schema (Drizzle)
+  wrangler.jsonc    Worker config — CF Builds' Path points here
+tools/
+  operator-scripts/ ingest.ts · eval.ts · gen-gold.ts · injection-eval.ts · lib/   (tsx)
+  rulebook-prep/    convert-pdfs.py · lib/clean.py · pyproject.toml                (Python/uv)
 docs/
-  adr/           architecture decision records
-  superpowers/   design specs + plans
-CONTEXT.md       domain glossary
-CLAUDE.md        how AI agents should work in this repo
+  adr/              architecture decision records
+  superpowers/      design specs + plans
+CONTEXT.md          domain glossary
+CLAUDE.md           how AI agents should work in this repo
 ```
 
 ## For AI agents working here

@@ -22,6 +22,6 @@ dist/
 # Operator-side rulebook conversion (copyrighted markdown stays out of the public repo)
 rulebooks/
 .venv/
-scripts/.validate-cache/
+.validate-cache/
 *.egg-info/
 __pycache__/

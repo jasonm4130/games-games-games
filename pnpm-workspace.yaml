@@ -1,3 +1,9 @@
+packages:
+  - apps/worker
+  - tools/operator-scripts
+# tools/rulebook-prep is a Python (uv) project — intentionally NOT a pnpm package, so it
+# stays out of the workspace and out of Cloudflare Builds' install at the apps/worker root.
+
 # Build-script approvals (pnpm 11). These deps ship native binaries / run install
 # scripts in this toolchain — workerd is the Workers runtime used by the Vite plugin
 # and the Vitest pool, esbuild backs the bundler.

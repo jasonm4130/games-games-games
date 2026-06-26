@@ -21,10 +21,10 @@ See the README's *Getting started* and *Operator toolchain* sections. In short:
 
 ```bash
 pnpm install
-cp .dev.vars.example .dev.vars   # fill in what you need (all optional for a basic run)
+cp apps/worker/.dev.vars.example apps/worker/.dev.vars   # fill in what you need (all optional for a basic run)
 pnpm dev                         # SPA + Worker + agent locally with HMR
 pnpm check && pnpm test          # before opening a PR
 ```
 
-The offline PDF→markdown conversion tooling is Python (`uv`); its tests run with
-`uv run pytest scripts/lib`.
+The offline PDF→markdown conversion tooling is Python (`uv`), under `tools/rulebook-prep/`; its
+tests run with `uv run pytest` from that directory.

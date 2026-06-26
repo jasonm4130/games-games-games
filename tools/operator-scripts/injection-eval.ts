@@ -20,7 +20,7 @@
 
 import { readFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
-import { GENERATION_MODEL } from "../src/server/rag/models";
+import { GENERATION_MODEL } from "worker/rag/models";
 import {
   EVAL_USER_AGENT,
   fail,

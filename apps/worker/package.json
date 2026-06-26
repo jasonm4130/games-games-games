@@ -1,0 +1,49 @@
+{
+  "name": "worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare-native RAG-over-rulebooks Worker — answers tabletop game rules questions, grounded and cited.",
+  "exports": {
+    "./rag/models": "./src/server/rag/models.ts",
+    "./rag/chunk": "./src/server/rag/chunk.ts",
+    "./rag/eval-metrics": "./src/server/rag/eval-metrics.ts",
+    "./shared/types": "./src/shared/types.ts"
+  },
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "deploy": "vite build && wrangler deploy",
+    "types": "wrangler types env.d.ts --include-runtime false",
+    "typecheck": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@ai-sdk/react": "^3.0.204",
+    "@cloudflare/ai-chat": "^0.8.5",
+    "@langchain/textsplitters": "^1.0.1",
+    "agents": "^0.16.0",
+    "ai": "^6.0.0",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.12.25",
+    "hono-agents": "^3.0.11",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "workers-ai-provider": "^3.1.14"
+  },
+  "devDependencies": {
+    "@babel/plugin-proposal-decorators": "^7.29.0",
+    "@cloudflare/vite-plugin": "^1.40.2",
+    "@cloudflare/vitest-pool-workers": "^0.16.15",
+    "@cloudflare/workers-types": "^4.20260602.1",
+    "@rolldown/plugin-babel": "^0.2.3",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.0.0",
+    "drizzle-kit": "^0.31.10",
+    "vite": "^8.0.0",
+    "vitest": "^4.1.0",
+    "wrangler": "^4.96.0"
+  }
+}

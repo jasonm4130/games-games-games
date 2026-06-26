@@ -6,13 +6,13 @@ status: accepted
 
 The Catalogue is **operator-onboarded** — there is no end-user upload (see CONTEXT.md).
 Onboarding a Game runs Ingestion as an **operator-side Node/TypeScript script**
-(`scripts/ingest.ts`), not a Worker fetch handler. The script parses + chunks the PDF
+(`tools/operator-scripts/ingest.ts`), not a Worker fetch handler. The script parses + chunks the PDF
 locally in Node, then calls the Workers AI and Vectorize **REST APIs** with an account token
 to embed and upsert; it writes chunk rows to D1. The Worker keeps only query-time retrieval
 and chat.
 
 > **Update (superseded in part by [ADR 0008](./0008-pdf-to-markdown-conversion.md)):** the
-> PDF-extraction mechanism described below no longer applies — `scripts/ingest.ts` now ingests
+> PDF-extraction mechanism described below no longer applies — `tools/operator-scripts/ingest.ts` now ingests
 > pre-converted **markdown** (`--md-path`) via `chunkMarkdown`, not PDF text via pdfjs. The decision
 > that ingestion runs as an operator-side script (everything else here) still stands.
 
@@ -37,10 +37,10 @@ DO-alarm batch job (Cloudflare-native with retries, but adds infra and a PDF par
 
 **Consequences:**
 
-- `scripts/ingest.ts` owns the full pipeline orchestration; the chunking helper (`chunk.ts`) is
+- `tools/operator-scripts/ingest.ts` owns the full pipeline orchestration; the chunking helper (`chunk.ts`) is
   pure/Node-compatible and shared with the Worker, while embedding uses the Workers AI REST API
   directly (`embed.ts` is Worker-binding-only — there is no Node equivalent of the `Ai` binding).
-  Shared wrangler/D1/auth plumbing lives in `scripts/lib/wrangler.ts`.
+  Shared wrangler/D1/auth plumbing lives in `tools/operator-scripts/lib/wrangler.ts`.
 - Ingestion is idempotent: re-onboarding a Document deletes its existing D1 chunks + Vectorize
   vectors (by the chunk ids captured from D1 — Vectorize has no delete-by-metadata, see ADR 0004)
   before re-inserting, so a re-run replaces that document's index.

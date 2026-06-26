@@ -38,8 +38,8 @@ import {
   precisionAt,
   recallAt,
   tokenOverlap,
-} from "../src/server/rag/eval-metrics";
-import { GEN_EVAL_MODELS } from "../src/server/rag/models";
+} from "worker/rag/eval-metrics";
+import { GEN_EVAL_MODELS } from "worker/rag/models";
 import { d1Select, EVAL_USER_AGENT, fail, requireEnv, resolveGameId, sqlStr } from "./lib/wrangler";
 
 const DEFAULT_BASE_URL = "https://games.jasonmatthew.dev";
