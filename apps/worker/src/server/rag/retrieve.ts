@@ -109,10 +109,13 @@ async function retrieveCandidates(
  * window they were selected from. Builds the fused candidate window (retrieveCandidates: dense ANN +
  * lexical BM25 legs, floored + RRF-fused, GAP 1), hydrates those (text + page span + Game name) from
  * D1, reranks with bge-reranker-base, and keeps those at/above RERANK_MIN_SCORE — the in-scope gate
- * (ADR 0004) — in reranker order. Returns `{ passages, candidateIds }`: `passages` is empty (so the
- * agent's free out-of-scope refusal still fires) when nothing clears the gate; `candidateIds` is the
- * pre-rerank fused window in fused order (for the eval's Recall@20). `.score` on each passage is the
- * cosine score (0 for a lexical-only hit, which had no dense score), for Citation display.
+ * (ADR 0004) — in reranker order, PLUS the RRF-consensus top candidate (see the rescue note below the
+ * rerank). Returns `{ passages, candidateIds }`: `passages` is empty (so the agent's free out-of-scope
+ * refusal still fires) only when retrieval surfaced NO candidates at all; once there is a fused
+ * window, its consensus-#1 chunk is always kept so the LLM — not the reranker's absolute score — makes
+ * the in/out-of-scope call. `candidateIds` is the pre-rerank fused window in fused order (for the
+ * eval's Recall@20). `.score` on each passage is the cosine score (0 for a lexical-only hit, which had
+ * no dense score), for Citation display.
  *
  * The eval's /api/eval/retrieve calls THIS once so it gets both the post-rerank `final` and the
  * pre-rerank `candidates` from a single embed + Vectorize query, instead of running retrieve() and
@@ -194,6 +197,20 @@ export async function retrieveDetailed(
       const chunk = survivors[id];
       return chunk ? [chunk] : [];
     });
+
+  // Rescue the RRF-consensus top candidate. survivors[0] is the chunk the dense + BM25 legs most
+  // agree on; the cross-encoder is a reliable RANKER but an unreliable ABSOLUTE judge (see
+  // models.ts RERANK_MIN_SCORE), and for natural-language META questions it scores that candidate
+  // below the gate even when it is the answer — measured: "what's in the box?" reranks the Quacks
+  // components chunk ~0.03 (gated out) though it is candidate #1, so the gate returned a degraded
+  // set and the model refused, while "list of components" passed. The gate's job is to drop garbage,
+  // not to veto strong retrieval consensus to an empty/degraded set: the LLM is the relevance judge
+  // (it refuses on content when a passage genuinely doesn't fit — proven for the off-topic/injection
+  // cases that already reach it). Keep the consensus #1 so the model always gets it to decide on.
+  const consensusTop = survivors[0];
+  if (consensusTop && !passages.some((p) => p.chunk.id === consensusTop.chunk.id)) {
+    passages.unshift(consensusTop);
+  }
   return { passages, candidateIds: ids };
 }
 
