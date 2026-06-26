@@ -20,7 +20,6 @@ export interface RetrieveOptions {
    * to search, so retrieve returns [].
    */
   gameId?: string;
-  topK?: number;
   /**
    * Retrieval mode (GAP 2 eval seam, default "hybrid"). "hybrid" runs both the dense ANN leg and
    * the lexical BM25 leg and fuses them; "dense" skips the lexical leg for a pure-dense baseline so
@@ -62,10 +61,10 @@ async function lexicalSearch(env: Env, query: string, gameId: string): Promise<s
  * (skipped in "dense" mode), floored, fused by RRF, sliced to RETRIEVAL_FETCH_N. `ids` are in fused
  * order; `cosineById` carries each dense hit's cosine score (lexical-only hits are absent → scored 0
  * downstream). Extracted (GAP 2) so the eval endpoint can report Recall@20 over this window without
- * a generation call; retrieve() calls it and then hydrates + reranks. Returns [] ids when nothing
- * survives both legs, so retrieve's out-of-scope refusal still fires.
+ * a generation call; retrieveDetailed calls it and then hydrates + reranks. Returns [] ids when
+ * nothing survives both legs, so retrieve's out-of-scope refusal still fires.
  */
-export async function retrieveCandidates(
+async function retrieveCandidates(
   env: Env,
   question: string,
   opts: RetrieveOptions = {},
@@ -83,7 +82,7 @@ export async function retrieveCandidates(
   // (the eval baseline) the lexical leg is skipped entirely for a pure-dense ranking.
   const [result, ftsIds] = await Promise.all([
     env.RULES_IDX.query(vector, {
-      topK: opts.topK ?? RETRIEVAL_FETCH_N,
+      topK: RETRIEVAL_FETCH_N,
       returnMetadata: "none",
       filter: { game_id: gameId },
     }),
