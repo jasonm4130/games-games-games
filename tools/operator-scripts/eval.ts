@@ -261,12 +261,18 @@ async function judgeFaithfulness(
     auth,
   );
   if (!json.success) return null;
-  const match = (json.result?.response ?? "").match(/"faithful"\s*:\s*(\d+(?:\.\d+)?)/);
+  // Workers AI returns result.response as a string for most models, but some return a parsed object
+  // (e.g. {faithful, reason}) — coerce to text either way so the regex resolves both shapes.
+  const raw = json.result?.response;
+  const text = typeof raw === "string" ? raw : JSON.stringify(raw ?? "");
+  const match = text.match(/"faithful"\s*:\s*(\d+(?:\.\d+)?)/);
   return match ? Math.max(0, Math.min(1, Number(match[1]))) : null;
 }
 
 async function runGenerationEval(rows: GoldRow[], baseUrl: string, secret: string): Promise<void> {
-  const auth = await resolveCloudflareAuth();
+  // Mutable: the `wrangler auth token` OAuth bearer can expire partway through a long run; the judge
+  // loop below re-resolves it on a 401 and reassigns here so later judge calls use the fresh token.
+  let auth = await resolveCloudflareAuth();
   console.log(
     `\n⚠ GENERATION compare: up to ${rows.length} question(s) × ${GEN_EVAL_MODELS.length} models = ` +
       `${rows.length * GEN_EVAL_MODELS.length} answer calls + as many faithfulness-judge calls ` +
@@ -318,7 +324,16 @@ async function runGenerationEval(rows: GoldRow[], baseUrl: string, secret: strin
         res.answer && row.expectedTextIncludes?.length
           ? citationAttributionPrecision(citedPassages, row.expectedTextIncludes)
           : null;
-      const faith = await judgeFaithfulness(row.query, res.answer, res.passages, auth);
+      let faith: number | null;
+      try {
+        faith = await judgeFaithfulness(row.query, res.answer, res.passages, auth);
+      } catch (err) {
+        // The OAuth bearer expired mid-run — refresh it once (wrangler auto-refreshes) and retry.
+        const msg = String(err);
+        if (!msg.includes("401") && !msg.includes("Authentication error")) throw err;
+        auth = await resolveCloudflareAuth();
+        faith = await judgeFaithfulness(row.query, res.answer, res.passages, auth);
+      }
       const scores = perModel[model];
       if (cv !== null && ov !== null) {
         scores.answered++;
