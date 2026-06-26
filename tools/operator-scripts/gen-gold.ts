@@ -112,7 +112,12 @@ async function proposeQA(
     { accountId, aiToken },
   );
   if (!json.success) return null;
-  const parsed = parseQA(json.result?.response ?? "");
+  // Workers AI returns result.response as a string for most models, but some return a parsed object;
+  // coerce to text so parseQA's string ops don't throw (same shape-guard as eval.ts's judge).
+  const rawResponse = json.result?.response;
+  const responseText =
+    typeof rawResponse === "string" ? rawResponse : JSON.stringify(rawResponse ?? "");
+  const parsed = parseQA(responseText);
   if (!parsed?.question?.trim()) return null;
   // Evidence must be a genuine substring of THIS chunk; if the model paraphrased it, fall back to a
   // salient line so expectedTextIncludes still resolves to this chunk in eval.ts.

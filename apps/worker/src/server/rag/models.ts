@@ -14,18 +14,18 @@ export const EMBEDDING_DIMENSIONS = 1024;
 export const GENERATION_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
 /**
- * Generation models the EVAL HARNESS (GAP 2) compares answer quality across — NEVER the
- * production default. The eval's --gen mode runs each gold question through every model here and
- * scores citation validity + token overlap so the human can judge a cutover (e.g. gemma's larger
- * context + ~8x cheaper output). GENERATION_MODEL above stays llama-3.3-70b until a human switches
- * it deliberately; this list does not change the agent. gemma id/pricing verified 2026-06-14:
- * @cf/google/gemma-4-26b-a4b-it — 256k-token context, $0.10/M in + $0.30/M out (vs llama-3.3-70b's
- * 24k context, $0.29/$2.25).
+ * Generation models the EVAL HARNESS (GAP 2) measures answer quality across in --gen mode — NEVER
+ * the production default. Each gold question runs through every model here, scored for citation
+ * validity/attribution, faithfulness, and token overlap so a human can judge a model cutover.
+ * Currently just the production model, so --gen is a single-model quality baseline of the live
+ * answerer. GENERATION_MODEL above stays llama-3.3-70b until a human switches it deliberately; this
+ * list never changes the agent.
+ *
+ * `@cf/google/gemma-4-26b-a4b-it` was removed 2026-06-27: it returned "out of scope" on all 42 gold
+ * questions (the same passages llama answered), i.e. the id is dead on Workers AI — it only burned
+ * cost and latency. To compare a cheaper cutover, add a VERIFIED current Workers AI text-gen id here.
  */
-export const GEN_EVAL_MODELS = [
-  "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
-  "@cf/google/gemma-4-26b-a4b-it",
-] as const;
+export const GEN_EVAL_MODELS = ["@cf/meta/llama-3.3-70b-instruct-fp8-fast"] as const;
 
 /**
  * Chunking budget, in bge-m3 tokens (not characters). Target ~512 (BAAI's own
