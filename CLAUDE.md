@@ -94,6 +94,18 @@ dir — account-level resources live in the central repo.
 | `pnpm inject-eval` | prompt-injection eval (LLM-judged) |
 | `scripts/provision.sh` | App-side: wire D1 id + apply D1 migration (resources come from `../jasonm4130-cf`) |
 
+## Releasing (Cloudflare Builds)
+
+**A push/merge to `main` builds and deploys the Worker automatically via Cloudflare
+Builds** (~70s on a warm cache). That is the release path — do not deploy by hand.
+`pnpm deploy` (`vite build && wrangler deploy`) is a **manual fallback only**; it calls
+`wrangler deploy` directly without stripping `CLOUDFLARE_API_TOKEN`, and a stale shell
+token shadows the `wrangler login` OAuth session — the Worker uploads but the
+route/custom-domain step dies with `Authentication error [code: 10000]`. If you must deploy
+manually, strip the token first: **`env -u CLOUDFLARE_API_TOKEN pnpm deploy`** (the same
+token-stripping `scripts/lib/wrangler.ts` does). Cold first-builds are slow; enable **Build
+Caching** in the dashboard (Settings → Builds) to cache deps between builds.
+
 ## The grill-with-docs skill
 
 `.claude/skills/grill-with-docs/` stress-tests a plan against `CONTEXT.md` and the ADRs,
