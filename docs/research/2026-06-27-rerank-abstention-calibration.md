@@ -14,6 +14,7 @@ fast-moving model/catalog facts before acting. -->
 - **But the floor is not separating scope, and no score-based gate can.** At 0.05 the gate drops the gold chunk on **19%** of answerable questions while still passing a candidate on **~43%** of (hard) out-of-scope queries. There is no cutoff — and, by extension, no relative-margin or dual-score reshape — that gets both error rates acceptable, because the two distributions overlap end to end.
 - **Consequence for the open work:** the premise of PR #12 (rescue the consensus top *from the score gate*) and any "tune the threshold / fuse two scores" plan is **refuted by the data** for the scope-decision job.
 - **And the answerability check we expected to need turned out redundant (§8–§9).** A focused 70B "do these passages answer X?" gate (89.2% balanced) refuses OOS *identically* to the current inline judge (83.3% both); the only difference is the inline pipeline false-refuses more answerable questions — caused by the **floor**, not the judgment. So **the lever is the floor, not a second call:** lower/remove `RERANK_MIN_SCORE` to stop denying the inline judge its gold chunks. Cheap models can't do the judgment at all (llama-3.2-1b refuses nothing; 3b/granite over-refuse).
+- **SHIPPED & CONFIRMED LIVE (§9.1).** Lowered `RERANK_MIN_SCORE` 0.05 → 0.01 (PR #14, deployed). Post-deploy prod `--baseline`: answerable→answer **84.3% → 93.1%**, OOS refusal **unchanged at 83.3%**, balanced **83.8% → 88.2%** — the separate-gate's level captured with one constant and zero new calls.
 - **The deepest reason (ELOQ):** out-of-scope questions are *semantically close to the documents that cannot answer them*. "Good retrieval score" and "answerable query" are different axes; a retrieval score can't tell them apart by construction.
 
 ## 2. The question
@@ -133,6 +134,17 @@ Ran the CURRENT production pipeline (rerank floor + inline-judge prompt + 70B ge
 - **Do NOT** add a separate answerability call — measured redundant.
 
 Caveat: the unanswerable set is 12 hand-curated questions; both systems missing the same 2 suggests those 2 may be borderline (retrieval surfaces a tangentially-relevant chunk). A larger unanswerable gold would tighten the 83.3% refuse figure both share.
+
+### 9.1 Shipped & confirmed live (2026-06-27, post-deploy)
+
+Took the surgical option — `RERANK_MIN_SCORE` **0.05 → 0.01** (`models.ts`, PR #14, merged → CF Builds deployed). Re-ran `--baseline` against prod with the live floor:
+
+| system | answerable→answer | unanswerable→refuse | balanced |
+|---|---|---|---|
+| before (floor 0.05) | 84.3% | 83.3% | 83.8% |
+| **after (floor 0.01, live)** | **93.1%** | **83.3%** | **88.2%** |
+
+The prediction held exactly: answerable answer-rate rose **+8.8pp** (the meta-question false-refusals recovered), OOS refusal was **unchanged** (83.3% — lowering the floor cost zero scope precision, as predicted since the LLM, not the floor, judges scope), and balanced accuracy **83.8% → 88.2%** now ≈ the separate-gate's 89.2% — captured with **one constant and no second call**. The remaining ~1pp to the no-floor ceiling is the abuse/cost trade-off in §9's aggressive option; not worth taking unless OOS-generation cost ever bites.
 
 ## Sources
 
