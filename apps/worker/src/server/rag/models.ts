@@ -61,23 +61,21 @@ export const RETRIEVAL_MIN_SCORE = 0.15;
  * — the LLM is (see prompt.ts "WHEN THE PASSAGES FALL SHORT"). Its only job is to keep obvious
  * garbage from reaching the model, while letting the genuinely-but-weakly-relevant through.
  *
- * Why low (re-calibrated 2026-06-14, was 0.2). The reranker is a good RANKER but an unreliable
- * ABSOLUTE judge, so no single cutoff separates in-scope from out-of-scope. Probed live on Monopoly:
- *   - genuine matches for awkward paraphrases score as LOW as ~0.10 ("how much money does each
- *     player start with" -> 0.110 rank #1; "how can a player escape jail" -> 0.102 rank #1), yet
- *   - genuinely-irrelevant chunks score as HIGH as ~0.99 (a Texas-Hold'em-poker question reranks a
- *     Monopoly chunk to 0.996; "how do I castle in chess" -> 0.456).
- * The old 0.2 cutoff dropped the 0.10–0.11 genuine matches (canned-refusing equivalent paraphrases
- * that should ground) while the 0.46/0.99 garbage sailed past it to the model anyway. So the cutoff
- * was doing the wrong job. We now set it to a NOISE floor of 0.05, which sits in the measured gap
- * between clear garbage (<= ~0.025: "capital of France" 0.0006, "best opening move in Go" 0.0225)
- * and genuine-weak matches (>= ~0.10). Verified end-to-end (real reranker + prompt + Llama 3.3 70B):
- * the awkward paraphrases now ground correctly, and out-of-scope/injection questions — including the
- * 0.46/0.99 cases that reach the model — still get the in-character "not in my rulebook" refusal.
- * Cross-game gold calibration: 39/40 genuine matches rerank >= 0.05 (identical to >= 0.2; natural
- * phrasings rerank ~0.99), so lowering costs no precision on well-phrased questions.
+ * Why this low (re-calibrated 2026-06-27, was 0.05, was 0.2 before that — full analysis in
+ * docs/research/2026-06-27-rerank-abstention-calibration.md). A full-corpus probe (102 gold Qs / 9
+ * games, `pnpm rerank-calibrate`) proved the reranker score CANNOT gate scope: genuine answer chunks
+ * score as low as 0.0007 while irrelevant chunks reach 0.997 — the in-scope and out-of-scope
+ * distributions overlap end to end, so NO cutoff separates them (§5). The real cost of the floor is
+ * false-refusals: at 0.05 it was dropping the GOLD chunk on ~19% of answerable questions before the
+ * LLM ever saw it (the meta-question refusals). An A/B (§9, `pnpm answerability-eval --baseline`)
+ * confirmed the LLM judge refuses out-of-scope at 83.3% whether the floor is high or low — the floor
+ * buys NO scope precision, only recall cost. So we set it as low as a pure garbage floor allows:
+ * 0.01 sits just above clear noise (<= ~0.0025: "capital of France" 0.0006) and cuts the answerable
+ * false-refusal rate ~19% -> ~10% (§5 sweep). Trade-off: a lower floor lets more out-of-scope reach
+ * the generator (no longer free canned-refused), but the LLM still refuses it and the rate limiters
+ * cap abuse; if generation cost on OOS bites, 0.025 is the more conservative setting.
  */
-export const RERANK_MIN_SCORE = 0.05;
+export const RERANK_MIN_SCORE = 0.01;
 
 export const RETRIEVAL_TOP_K = 5;
 /** Over-fetch count: how many Vectorize candidates to pull before the reranker narrows to RETRIEVAL_TOP_K. */
