@@ -1,5 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { groupStats, parseVerdict } from "./answerability-eval";
+import { classifyAnswer, groupStats, parseVerdict } from "./answerability-eval";
+
+describe("classifyAnswer", () => {
+  it("a cited ruling is answered", () => {
+    expect(classifyAnswer("Each player starts with $1500 [1].")).toBe("answered");
+  });
+  it("a refusal with no citation is refused", () => {
+    expect(classifyAnswer("That is not in my rulebook.")).toBe("refused");
+    expect(classifyAnswer("")).toBe("refused");
+  });
+  it("a partial-coverage answer that cites AND caveats still counts as answered (the handoff trap)", () => {
+    expect(classifyAnswer("You get 7 cards [1], but the rest is not in my rulebook.")).toBe(
+      "answered",
+    );
+  });
+});
 
 describe("parseVerdict", () => {
   it("checks UNANSWERABLE before ANSWERABLE (substring trap)", () => {

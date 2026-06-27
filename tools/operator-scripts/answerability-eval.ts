@@ -27,8 +27,17 @@ import { readFile } from "node:fs/promises";
 import { argv } from "node:process";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
-import { RETRIEVAL_TOP_K } from "worker/rag/models";
-import { requireEnv, resolveCloudflareAuth, resolveGameId, workersAiRun } from "./lib/wrangler";
+import { parseCitationMarkers } from "worker/rag/eval-metrics";
+import { GENERATION_MODEL, RETRIEVAL_TOP_K } from "worker/rag/models";
+import { fetchWithRetry } from "./lib/http";
+import {
+  EVAL_USER_AGENT,
+  fail,
+  requireEnv,
+  resolveCloudflareAuth,
+  resolveGameId,
+  workersAiRun,
+} from "./lib/wrangler";
 import { fetchCandidates, type GoldRow, gameChunks, rerankScores } from "./rerank-calibrate";
 
 const DEFAULT_BASE_URL = "https://games.jasonmatthew.dev";
@@ -80,6 +89,41 @@ export function groupStats(verdicts: (Verdict | null)[], answerableExpected: boo
 }
 
 const pct = (v: number) => (Number.isNaN(v) ? "—" : `${(v * 100).toFixed(1)}%`);
+
+/**
+ * Classify a production answer as answered vs refused, robustly. A grounded ruling carries [n]
+ * citation markers (the prompt requires one on every rule sentence); a refusal ("That is not in my
+ * rulebook.") and the pre-LLM canned path (empty answer) carry none. Citation-presence sidesteps the
+ * phrase-match trap where "you get 7 cards [1], but the rest is not in my rulebook" reads as a refusal
+ * — it cites, so it ANSWERED (partial coverage).
+ */
+export function classifyAnswer(answer: string): "answered" | "refused" {
+  return parseCitationMarkers(answer).length > 0 ? "answered" : "refused";
+}
+
+/** Call the REAL production pipeline (retrieve WITH the rerank floor → inline-judge prompt → generate). */
+async function inlineAnswer(
+  baseUrl: string,
+  secret: string,
+  gameId: string,
+  query: string,
+): Promise<string> {
+  const res = await fetchWithRetry(
+    `${baseUrl}/api/eval/answer`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-eval-secret": secret,
+        "user-agent": EVAL_USER_AGENT,
+      },
+      body: JSON.stringify({ gameId, query }),
+    },
+    { label: "eval/answer" },
+  );
+  if (!res.ok) fail(`/api/eval/answer → ${res.status}: ${await res.text()}`);
+  return ((await res.json()) as { answer: string }).answer;
+}
 
 interface Probe {
   row: GoldRow;
@@ -144,6 +188,7 @@ async function main(): Promise<void> {
       games: { type: "string" },
       limit: { type: "string" },
       models: { type: "string" },
+      baseline: { type: "boolean", default: false },
       "base-url": { type: "string", default: DEFAULT_BASE_URL },
     },
   });
@@ -175,6 +220,47 @@ async function main(): Promise<void> {
     }),
     ...tag(unanswerableRows, false),
   ];
+
+  // --baseline: measure the CURRENT system (rerank floor + inline-judge prompt + generation) on the
+  // same probes, so the separate 70B answerability gate (§8: 89.2% balanced) has a head-to-head. Uses
+  // /api/eval/answer (its own retrieval WITH the floor) and classifies answered/refused by citations.
+  // Spends generation credits (one llama-3.3-70b answer per probe), so it skips the judge-model loop.
+  if (values.baseline) {
+    const results: { answerable: boolean; cls: "answered" | "refused" }[] = [];
+    for (let i = 0; i < work.length; i++) {
+      const w = work[i] as (typeof work)[number];
+      const gameId = await resolveGameId(w.row.game, w.row.edition);
+      if (!gameId) continue;
+      const answer = await inlineAnswer(baseUrl, secret, gameId, w.row.query);
+      results.push({ answerable: w.answerable, cls: classifyAnswer(answer) });
+      process.stdout.write(`\r  answered ${i + 1}/${work.length}`);
+    }
+    console.log("\n");
+    const ans = results.filter((r) => r.answerable);
+    const uns = results.filter((r) => !r.answerable);
+    const ansRate = ans.length
+      ? ans.filter((r) => r.cls === "answered").length / ans.length
+      : Number.NaN;
+    const unsRate = uns.length
+      ? uns.filter((r) => r.cls === "refused").length / uns.length
+      : Number.NaN;
+    console.log(
+      `CURRENT pipeline (rerank floor + inline judge + ${GENERATION_MODEL.replace("@cf/", "")}) ` +
+        `on ${ans.length} answerable + ${uns.length} unanswerable:`,
+    );
+    console.table([
+      {
+        "answerable→answer": pct(ansRate),
+        "unanswerable→refuse": pct(unsRate),
+        "balanced acc": pct((ansRate + unsRate) / 2),
+      },
+    ]);
+    console.log(
+      "\nHead-to-head: a SEPARATE 70B answerability gate scored 89.2% balanced (§8 of the research note).\n" +
+        "If this baseline matches/beats it, the inline judge already suffices — don't add a second call.",
+    );
+    return;
+  }
 
   const auth = await resolveCloudflareAuth();
   const probes: Probe[] = [];
