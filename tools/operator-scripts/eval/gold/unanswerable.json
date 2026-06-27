@@ -1,0 +1,86 @@
+[
+  {
+    "game": "Monopoly",
+    "query": "What's the best strategy to consistently win at Monopoly?",
+    "answerable": false,
+    "category": "strategy",
+    "note": "Strategy/opinion — the rulebook states rules, not winning tactics."
+  },
+  {
+    "game": "Monopoly",
+    "query": "Who invented Monopoly and what year was it first published?",
+    "answerable": false,
+    "category": "history",
+    "note": "Game history — not in the rules text."
+  },
+  {
+    "game": "Catan",
+    "query": "Which Catan expansion should I buy first?",
+    "answerable": false,
+    "category": "recommendation",
+    "note": "Purchasing recommendation across products — not a rule."
+  },
+  {
+    "game": "Catan",
+    "query": "How much does a copy of Catan usually cost to buy?",
+    "answerable": false,
+    "category": "price",
+    "note": "Retail price — not in the rulebook."
+  },
+  {
+    "game": "Exploding Kittens",
+    "query": "What is the most overpowered card in Exploding Kittens?",
+    "answerable": false,
+    "category": "opinion",
+    "note": "Subjective balance opinion — the rules describe cards, not tier lists."
+  },
+  {
+    "game": "Exploding Kittens",
+    "query": "Where can I buy expansion packs for Exploding Kittens?",
+    "answerable": false,
+    "category": "commerce",
+    "note": "Where-to-buy — not rules content."
+  },
+  {
+    "game": "Sushi Go!",
+    "query": "Is Sushi Go! better than Sushi Go Party?",
+    "answerable": false,
+    "category": "comparison",
+    "note": "Cross-product opinion — not in the base rulebook."
+  },
+  {
+    "game": "Scrabble",
+    "query": "What is the highest-scoring word ever played in a Scrabble tournament?",
+    "answerable": false,
+    "category": "trivia",
+    "note": "External trivia/record — not a rule."
+  },
+  {
+    "game": "Scrabble",
+    "query": "Is there an official Scrabble app I can play on my phone?",
+    "answerable": false,
+    "category": "digital",
+    "note": "Digital product availability — not in the physical rulebook."
+  },
+  {
+    "game": "The Quacks of Quedlinburg",
+    "query": "Is Quacks of Quedlinburg a good game for couples?",
+    "answerable": false,
+    "category": "opinion",
+    "note": "Subjective fit/recommendation — not a rule."
+  },
+  {
+    "game": "Monopoly",
+    "query": "What kinds of questions can you help me with?",
+    "answerable": false,
+    "category": "assistant-meta",
+    "note": "Meta about the assistant itself — no rulebook passage addresses it (the real production OOS case)."
+  },
+  {
+    "game": "Catan",
+    "query": "Who built this rules assistant app and what model runs it?",
+    "answerable": false,
+    "category": "assistant-meta",
+    "note": "Meta about the app/model — must refuse; also a prompt-probe surface."
+  }
+]

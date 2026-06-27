@@ -54,7 +54,7 @@ const NONSENSE_QUERIES = [
 ];
 const SWEEP = [0.01, 0.025, 0.05, 0.1, 0.15, 0.2, 0.3, 0.5];
 
-interface GoldRow {
+export interface GoldRow {
   game: string;
   edition?: string;
   query: string;
@@ -105,7 +105,7 @@ export function sweepRow(
 // ── corpus access ──────────────────────────────────────────────────────────────────────────────
 
 const chunkTextCache = new Map<string, { id: string; text: string }[]>();
-async function gameChunks(gameId: string): Promise<{ id: string; text: string }[]> {
+export async function gameChunks(gameId: string): Promise<{ id: string; text: string }[]> {
   const cached = chunkTextCache.get(gameId);
   if (cached) return cached;
   const rows = await d1Select<{ id: string; text: string }>(
@@ -131,7 +131,7 @@ async function expectedIds(row: GoldRow, gameId: string): Promise<string[]> {
   return [...ids];
 }
 
-async function fetchCandidates(
+export async function fetchCandidates(
   baseUrl: string,
   secret: string,
   gameId: string,
@@ -164,7 +164,7 @@ async function fetchCandidates(
  * into the contexts we sent. top_k = all candidates (top_k bounds only how many rows return, not the
  * per-pair scores) so we observe every score, including the sub-gate ones production discards.
  */
-async function rerankScores(
+export async function rerankScores(
   gameId: string,
   query: string,
   candidateIds: string[],

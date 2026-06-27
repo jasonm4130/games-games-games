@@ -10,6 +10,7 @@
     "inject-eval": "tsx injection-eval.ts",
     "gen-gold": "tsx gen-gold.ts",
     "rerank-calibrate": "tsx rerank-calibrate.ts",
+    "answerability-eval": "tsx answerability-eval.ts",
     "validate-md": "tsx validate-md.ts",
     "heal": "tsx heal.ts",
     "typecheck": "tsc",
