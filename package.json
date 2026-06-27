@@ -25,6 +25,7 @@
     "eval": "pnpm --filter operator-scripts eval",
     "inject-eval": "pnpm --filter operator-scripts inject-eval",
     "gen-gold": "pnpm --filter operator-scripts gen-gold",
+    "rerank-calibrate": "pnpm --filter operator-scripts rerank-calibrate",
     "lint": "biome check .",
     "format": "biome format --write .",
     "check": "biome check . && pnpm -r typecheck",
