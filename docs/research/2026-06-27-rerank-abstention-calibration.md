@@ -12,7 +12,8 @@ fast-moving model/catalog facts before acting. -->
 - **A reranker/cosine score is a good *ranker* but cannot *gate scope*.** This is the unanimous finding across the 2023–2026 literature **and** is now measured on our own corpus: across 102 gold questions in 9 games, genuine answer chunks and irrelevant out-of-scope chunks produce **fully overlapping** reranker-score distributions. No threshold separates them.
 - **Our current design was the right instinct.** `RERANK_MIN_SCORE=0.05` as a *noise floor* + delegating the answer/refuse call to the LLM is closer to best practice than a hard reranker cutoff. We did not make the common mistake.
 - **But the floor is not separating scope, and no score-based gate can.** At 0.05 the gate drops the gold chunk on **19%** of answerable questions while still passing a candidate on **~43%** of (hard) out-of-scope queries. There is no cutoff — and, by extension, no relative-margin or dual-score reshape — that gets both error rates acceptable, because the two distributions overlap end to end.
-- **Consequence for the open work:** the premise of PR #12 (rescue the consensus top *from the score gate*) and any "tune the threshold / fuse two scores" plan is **refuted by the data** for the scope-decision job. The genuinely better lever is an **answerability check** — a different question ("do these passages answer X?") than the reranker's ("is this passage relevant to X?") — or accepting the LLM-as-scope-judge design and hardening/verifying *that*.
+- **Consequence for the open work:** the premise of PR #12 (rescue the consensus top *from the score gate*) and any "tune the threshold / fuse two scores" plan is **refuted by the data** for the scope-decision job.
+- **And the answerability check we expected to need turned out redundant (§8–§9).** A focused 70B "do these passages answer X?" gate (89.2% balanced) refuses OOS *identically* to the current inline judge (83.3% both); the only difference is the inline pipeline false-refuses more answerable questions — caused by the **floor**, not the judgment. So **the lever is the floor, not a second call:** lower/remove `RERANK_MIN_SCORE` to stop denying the inline judge its gold chunks. Cheap models can't do the judgment at all (llama-3.2-1b refuses nothing; 3b/granite over-refuse).
 - **The deepest reason (ELOQ):** out-of-scope questions are *semantically close to the documents that cannot answer them*. "Good retrieval score" and "answerable query" are different axes; a retrieval score can't tell them apart by construction.
 
 ## 2. The question
@@ -111,7 +112,27 @@ Tested whether a focused "do these passages answer X?" LLM call separates scope 
 
 **Caveats:** the judge saw the *same* passages it would generate from, so a separate 70B answerability gate vs the 70B *inline* judgment (the current `prompt.ts` "WHEN THE PASSAGES FALL SHORT") is the comparison that actually decides whether to wire it in — not yet measured. The unanswerable set is only 12 (hand-curated); the 70B wrongly answered 2 of them. `gemma-4-26b-a4b-it` excluded (dead id per `models.ts`).
 
-**Provisional recommendation:** the simplest real win may be to **drop/lower the rerank floor** (§5: it gates out the gold chunk on 19% of answerable questions — the false-refusal half, i.e. the meta-question problem) and feed top-5 always; then measure whether a focused 70B answerability gate beats the inline judgment on the false-accept half before adding a second call.
+**Recommendation:** measured in §9 — the floor, not a second call.
+
+## 9. Head-to-head: separate gate vs the current inline pipeline (decisive)
+
+Ran the CURRENT production pipeline (rerank floor + inline-judge prompt + 70B generate, via `/api/eval/answer`) over the same 114 probes, classifying answered-vs-refused by citation presence (a grounded ruling carries `[n]` markers; a refusal/canned-empty does not). `pnpm answerability-eval --baseline`.
+
+| system | answerable→answer | unanswerable→refuse | balanced |
+|---|---|---|---|
+| current: rerank floor + inline judge | 84.3% | 83.3% | 83.8% |
+| proposed: separate 70B answerability gate (§8) | 95.1% | 83.3% | 89.2% |
+
+**The two systems refuse OOS identically — 83.3%, the same 10/12.** The entire 5.4pp gap is on the *answerable* side (84.3% vs 95.1%), and that deficit is the **rerank floor**: §5 measured the 0.05 floor drops the gold chunk on ~19% of answerable questions, so they get refused before any judge sees them.
+
+**Conclusion — a separate 70B answerability call is NOT worth building.** It is redundant with the inline judge (identical refuse rate), so it buys zero scope-discrimination for a second call (~$0.0008, +1–2s). The CRAG "focused call beats embedded judgment" effect did not appear — llama-3.3-70b's *inline* judgment already matches a dedicated call. The real lever is the floor: feeding the inline judge the gold chunks it is currently denied should lift 83.8% toward 89.2% with zero new calls.
+
+**Recommendation:**
+- **Lower `RERANK_MIN_SCORE` 0.05 → ~0.01** (surgical): §5's sweep cuts false-refusal 19%→10%, recovering ~half the lost answerable while keeping a garbage floor AND the free canned-refusal path for the clearest junk. Re-run `--baseline` to confirm the lift.
+- **Or remove the floor entirely** (aggressive): feed top-5 always → ~89% balanced, but every OOS query then costs a generation (loses the free-refusal path the 2026-06-14 review flagged as an abuse cost-lever). Weigh cost/abuse.
+- **Do NOT** add a separate answerability call — measured redundant.
+
+Caveat: the unanswerable set is 12 hand-curated questions; both systems missing the same 2 suggests those 2 may be borderline (retrieval surfaces a tangentially-relevant chunk). A larger unanswerable gold would tighten the 83.3% refuse figure both share.
 
 ## Sources
 
