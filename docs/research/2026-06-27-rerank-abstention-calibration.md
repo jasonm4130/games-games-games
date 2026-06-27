@@ -85,7 +85,7 @@ Threshold sweep — false-refusal (gold target gated out) vs false-accept (OOS j
 
 1. **Keep `RERANK_MIN_SCORE` as a pure noise floor; the LLM remains the scope judge (by design).** Do not promote the reranker score to a scope *judge*. (Optionally test lowering toward ~0.01–0.025 to recover the ~9% of gold chunks gated out between 0.01 and 0.05 — but that pushes *more* junk to the LLM, whose own scope-judgment has a ~70% ceiling, so gate that on a generation-side measurement, not this one.)
 2. **The PR #12 premise is refuted for the scope job.** No score-based gate — fixed floor, relative margin, or cosine×reranker fusion — separates in-scope from OOS here. Close PR #12, or keep it *only* as a narrow recall fix for the specific Quacks-components case with eyes open that it raises OOS leakage. Do not invest in dual-score gating for abstention.
-3. **The real lever is an answerability check** (ELOQ): ask "do these passages answer X?" not "is this passage relevant?" — a cheap separate step that beats both the score and generator self-judgment. On Workers AI this is a focused second classification call, or a hosted NLI cross-encoder *if one exists in the catalog* (open question — check before committing).
+3. **The real lever is an answerability check** (ELOQ): ask "do these passages answer X?" not "is this passage relevant?" — a different question than relevance, that beats the score. Workers AI has **no NLI/entailment model** (only `distilbert-sst-2` sentiment + the reranker), so the check is a focused LLM call. Measured — see §8: **only the 70B does it well (89.2% balanced); the cheap models fail** (AbstentionBench confirmed). So it is *not* a cheap-model win — it's a focused second call on the model we already run, justified only if it beats the inline generator judgment (next measurement).
 4. **Skip** (ruled out by our constraints): conformal as a silver bullet (no production deployments, can't separate overlapping distributions, heavyweight variants like TRAQ ≈ 15× generation cost); Self-RAG/RAFT (require fine-tuning a custom model — we're on hosted models); semantic entropy (N× generation cost).
 
 ## 7. Reproduce
@@ -95,6 +95,23 @@ Threshold sweep — false-refusal (gold target gated out) vs false-accept (OOS j
 ```
 EVAL_SECRET=… pnpm rerank-calibrate [--gold eval/gold/common.json] [--games Monopoly,Catan] [--limit N]
 ```
+
+## 8. Answerability trial (2026-06-27, prod, 102 answerable + 12 unanswerable / 9 games)
+
+Tested whether a focused "do these passages answer X?" LLM call separates scope where the score can't. Each model judged ANSWERABLE / PARTIAL / UNANSWERABLE over the top-5 reranked passages (no floor — answerability is meant to *replace* the floor). Answerable group = `common.json` + `catalogue.json`; unanswerable group = `eval/gold/unanswerable.json` (in-game strategy/history/price/opinion + assistant-meta — the real production OOS). `pnpm answerability-eval`.
+
+| model | answerable→answer | unanswerable→refuse | balanced acc |
+|---|---|---|---|
+| **@cf/meta/llama-3.3-70b-instruct-fp8-fast** | **95.1%** | **83.3%** | **89.2%** |
+| @cf/ibm-granite/granite-4.0-h-micro | 72.5% | 83.3% | 77.9% |
+| @cf/meta/llama-3.2-3b-instruct | 56.9% | 91.7% | 74.3% |
+| @cf/meta/llama-3.2-1b-instruct | 97.1% | 0.0% | 48.5% |
+
+**Read:** the 70B (already our generator) is the only viable judge — 89.2% balanced, vs the reranker score which had *no* cutoff above ~57% on either axis (§5). The cheap models each fail one direction: llama-3.2-1b says "answerable" to everything (0% refusal — useless gate), llama-3.2-3b over-refuses answerable (kills 44/102), granite hedges (24 "partial", refuses 28 answerable). This confirms AbstentionBench live — small models can't do abstention judgment. **So the answerability check is not a cheap-model win; it's a focused second 70B call** (~$0.0008, +~1–2s latency).
+
+**Caveats:** the judge saw the *same* passages it would generate from, so a separate 70B answerability gate vs the 70B *inline* judgment (the current `prompt.ts` "WHEN THE PASSAGES FALL SHORT") is the comparison that actually decides whether to wire it in — not yet measured. The unanswerable set is only 12 (hand-curated); the 70B wrongly answered 2 of them. `gemma-4-26b-a4b-it` excluded (dead id per `models.ts`).
+
+**Provisional recommendation:** the simplest real win may be to **drop/lower the rerank floor** (§5: it gates out the gold chunk on 19% of answerable questions — the false-refusal half, i.e. the meta-question problem) and feed top-5 always; then measure whether a focused 70B answerability gate beats the inline judgment on the false-accept half before adding a second call.
 
 ## Sources
 
